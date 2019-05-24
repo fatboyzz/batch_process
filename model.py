@@ -21,6 +21,29 @@ class ERNAErrorIndex(ERNAError):
     def __str__(self):
         return "At {0} : {1}".format(self.index, self.message)
 
+class AssignExpError(Exception): pass
+class AssignExpEmpty(AssignExpError): 
+    def __str__(self): return "Assign Expression Empty"
+class AssignExpErrorIndex(AssignExpError):
+    def __init__(self, index, message):
+        self.index = index
+        self.message = message
+    def __str__(self):
+        return "At {0} : {1}".format(self.index, self.message)
+class AssignExpErrorInconsistantType(AssignExpError):
+    def __init__(self, expect, actual):
+        self.expect = expect
+        self.actual = actual
+    def __str__(self):
+        return "Inconsistant Type : Expect {0} Actual {1}".format(
+            self.expect.__name__, self.actual.__name__
+        )
+class AssignExpErrorException(AssignExpError):
+    def __init__(self, exception):
+        self.exception = exception
+    def __str__(self):
+        return str(self.exception)
+
 class CollectionError(Exception): pass
 class CollectionErrorEmpty(CollectionError):
     def __str__(self): return "Collection Empty"
@@ -31,13 +54,11 @@ class CollectionErrorProperty(CollectionError):
         self.prop = prop
     def __str__(self): 
         return "Unknown Property {0}".format(self.prop)
-
-ErrorTable = [
-    ("unexpected_error", Exception),
-    ("erna_error", ERNAError),
-    ("collection_error", CollectionError),
-]
-
+class CollectionErrorAssign(CollectionError):
+    def __init__(self, exception):
+        self.exception = exception
+    def __str__(self):
+        return str(self.exception)
 
 class ERNATokenType(enum.Enum):
     t_start = 1
@@ -73,17 +94,22 @@ class BatchAssign_Properties(bpy.types.PropertyGroup):
     )
 
     erna_error_indicator : StringProperty(
-        description = "ERNA Error Marker",
+        description = "ERNA Error Indicator",
+        default = "",
+    )
+
+    assign_exp_error : StringProperty(
+        description = "Assign Expression Error",
+        default = "",
+    )
+
+    assign_exp_error_indicator : StringProperty(
+        description = "Assign Expression Error Indicator",
         default = "",
     )
 
     collection_error : StringProperty(
         description = "Collection Error",
-        default = "",
-    )
-
-    assign_error : StringProperty(
-        description = "Assign Error",
         default = "",
     )
 
@@ -94,7 +120,7 @@ class BatchAssign_Properties(bpy.types.PropertyGroup):
             (bpy.ops.batch_assign.control_update(), None)[1]
     )
 
-    assign_expression : StringProperty(
+    assign_exp : StringProperty(
         description = "Python Expression Of Assign Value",
         default = "",
     )

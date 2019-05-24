@@ -58,6 +58,20 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         else:
             return False
 
+    def draw_error_indicator(self, layout, indicator) -> bool:
+        props = Control.properties()
+
+        if len(getattr(props, indicator)) > 0:
+            layout.prop(
+                data = props,
+                property = indicator,
+                text = "",
+                icon = "ERROR",
+            )
+            return True
+        else:
+            return False
+
     def draw(self, context):
         self.context = context
         self.draw_update_button()
@@ -70,27 +84,6 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
             text = "Update",
         )
 
-        err = Control.check_selection()
-        if self.draw_error(layout, err): return
-
-        err = Control.properties().unexpected_error
-        if self.draw_error(layout, err): return
-
-        self.draw_selection()        
-
-    def draw_selection(self):
-        layout = self.layout.box()
-        layout.label(text = "Selection:")
-
-        layout = layout.column(align = True)
-        for obj in Control.selection.datas:
-            layout.prop(
-                data = obj,
-                property = "name",
-                text = "",
-                icon = obj.type + "_DATA",
-            )
-
         self.draw_erna()
 
     def draw_erna(self):
@@ -98,25 +91,17 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout.label(text = "Extended RNA Data Path:")
 
         layout_column = layout.column(align = True)
-        prop = Control.properties()
+        props = Control.properties()        
 
         layout_column.prop(
-            data = prop,
+            data = props,
             property = "erna",
             text = "",
             icon = "TEXT",
         )
 
-        if len(prop.erna_error_indicator) > 0:
-            layout_column.prop(
-                data = prop,
-                property = "erna_error_indicator",
-                text = "",
-                icon = "ERROR",
-            )
-
-        err = prop.erna_error
-        if self.draw_error(layout, err): return
+        self.draw_error_indicator(layout_column, "erna_error_indicator")
+        self.draw_error(layout, props.erna_error)
 
         self.draw_assign_expression()
 
@@ -124,11 +109,18 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout = self.layout.box()
         layout.label(text = "Assign Expression: ")
 
-        layout.prop(
-            data = Control.properties(),
-            property = "assign_expression",
+        layout_column = layout.column(align = True)
+        props = Control.properties()
+
+        layout_column.prop(
+            data = props,
+            property = "assign_exp",
             text = "",
-        )        
+            icon = "TEXT",
+        )
+    
+        self.draw_error_indicator(layout_column, "assign_exp_error_indicator")
+        self.draw_error(layout, props.assign_exp_error)
 
         self.draw_assign_button()
 
@@ -136,27 +128,54 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout = self.layout
         layout.operator(
             "batch_assign.control_batch_assign",
-            text = "Batch Assign",
+            text = "Assign",
         )
+
+        self.draw_errors()
+
+    def draw_errors(self):
+        layout = self.layout
+        props = Control.properties()
+
+        err = Control.check_selection()
+        if self.draw_error(layout, err): return
+
+        err = props.unexpected_error
+        if self.draw_error(layout, err): return
+
+        err = props.erna_error
+        if len(err) > 0: return
+
+        err = props.collection_error
+        if self.draw_error(layout, err): return
 
         self.draw_collection()
         
     def draw_collection(self):
-        layout = self.layout.box()
-        layout.label(text = "Collection: ")
+        collection = Control.collection
+        if not issubclass(collection.property_type, bpy.types.bpy_struct): return
 
-        err = Control.properties().collection_error
-        if self.draw_error(layout, err): return
+        layout = self.layout.box()
+        layout.label(text = "Assign Preview: ")
+        props = Control.properties()
 
         layout = layout.column(align = True)
+        for index, data in enumerate(collection.datas):
+            layout_row = layout.row()
 
-        collection = Control.collection
-        for data in collection.datas:
-            layout.prop(
+            layout_row.prop(
                 data = data,
                 property = collection.property,
                 text = "",
             )
+            
+            err = props.assign_exp_error
+            if len(err) > 0: continue
+
+            layout_row.label(
+                text = str(collection.datas_assign[index])
+            )
+                
 
         self.draw_accessable_property()
 

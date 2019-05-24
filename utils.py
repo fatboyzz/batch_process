@@ -1,6 +1,7 @@
-import bpy
+import sys
+import traceback
 import importlib
-
+import bpy
 
 def register_module(mod):
     if not hasattr(mod, "register_classes"):
@@ -43,7 +44,16 @@ def counter(n):
 def get_clipboard():
     return bpy.context.window_manager.clipboard
 
-
 def set_clipboard(s):
     bpy.context.window_manager.clipboard = s
 
+def print_traceback_and_set_clipboard(self):
+    etype, value, tb = sys.exc_info()
+    if tb == None: return
+        
+    traceback.print_exception(etype, value, tb)
+
+    tb_extracted = traceback.extract_tb(tb)
+    if len(tb_extracted) > 0:
+        file, line, _, _ = tb_extracted[-1]
+        set_clipboard("{0}:{1}".format(file, line))
