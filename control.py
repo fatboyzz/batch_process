@@ -1,8 +1,10 @@
 import re
 import bpy
+from collections import ChainMap
 
 from .utils import *
 from .model import *
+from .expression_globals import *
 
 register_classes = []
 
@@ -33,12 +35,14 @@ class ERNA():
     t_stop = t_count()
     t_symbol = t_count()
     t_name = t_count()
-    t_value = t_count()
-
+    t_number = t_count()
+    t_expr = t_count()
+    
     re_table = [
-        (t_symbol, re.compile(r"""[#\[\]\.\*@\|=<>:\$]""")),
+        (t_symbol, re.compile(r"""[\.\*@|\[:\]\%]""")),
         (t_name, re.compile(r"""[A-Za-z_][A-Za-z_0-9]*""")),
-        (t_value, re.compile(r"""[0-9\-("][0-9\-.,()" ]*""")),
+        (t_number, re.compile(r"""[0-9-]+""")),
+        (t_expr, re.compile(r"""$[^$]*$""")),
     ]
 
     def tokens(self):
@@ -52,7 +56,7 @@ class ERNA():
         yield self.t_start, self.s_index, ""
 
         while True:
-            if self.s_index >= len(self.s) or self.s[self.s_index].isspace():
+            if self.s_index >= len(self.s):
                 yield self.t_stop, self.s_index, ""
                 return
 
@@ -70,13 +74,12 @@ class ERNA():
     
     erna = erna_count()
     op = erna_count()
-    op_map = erna_count()
+    op_prop = erna_count()
     op_flatten = erna_count()
     op_sort = erna_count()
-    op_filter_eq = erna_count()
-    op_filter_less = erna_count()
-    op_filter_greater = erna_count()
+    op_filter = erna_count()
     op_take = erna_count()
+    op_var = erna_count()
 
     def next(self):
         self.t_type, self.t_index, self.t_string = self.t_sequence.__next__()
@@ -86,11 +89,11 @@ class ERNA():
 
     def match_token(self, t_type):
         if self.is_token(t_type):
-            ret = self.t_type, self.t_string
+            string = self.t_string
             self.next()
-            return ret
+            return string
         else:
-            raise ERNAErrorIndex(self.t_index, "Unexpected Token Type")
+            raise ERNAErrorIndex(self.t_index, "Unexpected Token")
 
     def is_symbol(self, symbol):
         return self.t_type == self.t_symbol and \
@@ -98,25 +101,23 @@ class ERNA():
         
     def match_symbol(self, symbol):
         if self.is_symbol(symbol):
-            ret = self.t_type, self.t_string
+            string = self.t_string
             self.next()
-            return ret
+            return string
         else:
             raise ERNAErrorIndex(
                 self.t_index, "Expect Symbol {0}".format(symbol))
 
     def parse(self):
         """
-            erna : op*op_map
-            op_map : .+t_name(.t_name)*
-            op_flatten : [*] | *
-
-            op_bracket : [(one of following op)]
-            op_sort : @op_map | @
-            op_filter_eq : |op_map=t_value
-            op_filter_less : |op_map<t_value
-            op_filter_greater : |op_map>t_value
-            op_take : t_value:t_value:t_value
+            erna -> op* t_stop
+            op -> op_prop | op_flatten | op_sort | op_filter | op_take | op_var
+            op_prop -> ["."] t_name ("." op_prop)*
+            op_flatten -> "*"
+            op_sort -> "@" t_expr
+            op_filter -> "|" t_expr
+            op_take -> "[" t_number [ ":" t_number [ ":" t_number ]] "]"
+            op_var -> "%" t_name
         """
         self.t_sequence = self.tokens()
         self.next()
@@ -131,188 +132,235 @@ class ERNA():
         if len(ret) == 0:
             raise ERNAErrorEmpty()
 
-        op, _ = ret[-1]
-        if op != self.op_map:
-            raise ERNAErrorIndex(self.t_index, "Expect A Map Operator Ending")
-
         return ret
     
     def parse_op(self):
-        if self.is_token(self.t_name) or self.is_symbol("."):
-            return self.parse_op_map()
+        if self.is_token(self.t_name):
+            return self.parse_op_prop()
+
+        elif self.is_symbol("."):
+            return self.parse_op_prop()
 
         elif self.is_symbol("*"):
             return self.parse_op_flatten()
 
+        elif self.is_symbol("@"):
+            return self.parse_op_sort()
+
+        elif self.is_symbol("|"):
+            return self.parse_op_filter()
+
         elif self.is_symbol("["):
-            return self.parse_op_bracket()
+            return self.parse_op_take()
+
+        elif self.is_symbol("%"):
+            return self.parse_op_var()
         
         else:
             raise ERNAErrorIndex(self.t_index, "Unexpected Operator")
 
-    def parse_op_map(self):
-        """Return (op_map, props)"""
+    def parse_op_prop(self):
+        """Return (op_prop, props)"""
         if self.is_symbol("."):
             self.next()
         
         props = []
-        _, prop = self.match_token(self.t_name)
+        prop = self.match_token(self.t_name)
         props.append(prop)
 
         while self.is_symbol("."):
             self.next()
-            _, prop = self.match_token(self.t_name)
+            prop = self.match_token(self.t_name)
             props.append(prop)
 
         if len(props) == 0:
             raise ERNAErrorIndex(self.t_index, "Expect Map Operator")
 
-        return self.op_map, props
+        return self.op_prop, props
 
     def parse_op_flatten(self):
         """Return (op_flatten, None)"""
         self.match_symbol("*")
         return self.op_flatten, None
 
-    def parse_op_bracket(self):
-        self.match_symbol("[")
-
-        ret = None
-        if self.is_symbol("*"):
-            ret = self.parse_op_flatten()
-
-        elif self.is_symbol("@"):
-            ret = self.parse_op_sort()
-
-        elif self.is_symbol("|"):
-            ret = self.parse_op_filter()
-
-        else:
-            ret = self.parse_op_take()
-
-        self.match_symbol("]")
-        return ret
-
     def parse_op_sort(self):
-        """Return (op_sort, prop)"""
+        """Return (op_sort, expr)"""
         self.match_symbol("@")
-        _, prop = self.parse_op_map()
-        return self.op_sort, prop
+        expr = self.match_token(self.t_expr)
+        return self.op_sort, expr
 
     def parse_op_filter(self):
-        """Return (op_filter_xx, (prop, value))"""
+        """Return (op_filter_xx, expr)"""
         self.match_symbol("|")
-        _, prop = self.parse_op_map()
-
-        op = None
-        if self.is_symbol("="):
-            self.next()
-            op = self.op_filter_eq
-
-        elif self.is_symbol("<"):
-            self.next()
-            op = self.op_filter_less
-
-        elif self.is_symbol(">"):
-            self.next()
-            op = self.op_filter_greater
-
-        else:
-            raise ERNAErrorIndex(self.t_index, "Unexpected Filter Operator")
-
-        _, t_string = self.match_token(self.t_value)
-        value = eval(t_string)
-        return op, (prop, value)
+        expr = self.match_token(self.t_expr)
+        return self.op_filter, expr
 
     def parse_op_take(self):
         """Return (op_take, (start, stop, step))"""
-        _, value = self.match_token(self.t_value)
-        start = exec(value)
+        self.match_symbol("[")
 
-        self.match_symbol(":")
+        start, stop, step = None, None, None
 
-        _, value = self.match_token(self.t_value)
-        stop = exec(value)
+        start = int(self.match_token(self.t_number))
 
-        self.match_symbol(":")
+        if self.is_symbol(":"):
+            self.next()
+            stop = int(self.match_token(self.t_number))
 
-        _, value = self.match_token(self.t_value)
-        step = exec(value)
+            if self.is_symbol(":"):
+                self.next()
+                step = int(self.match_token(self.t_number))
+
+        self.match_symbol("]")
 
         return self.op_take, (start, stop, step)
 
+    def parse_op_var(self):
+        """Return (op_var, name)"""
+        self.match_symbol("%")
+        name = self.match_token(self.t_name)
+        return self.op_var, name
+
 class Collection():
     def __init__(self, selection):
-        self.datas = selection.datas
+        self.contexts = [(data, {}) for data in selection.datas]
         self.property = ""
-        self.property_type = "NoneType"
+        self.property_type = type(None)
+        self.data_type = type(None)
         self.datas_assign = []
 
-    def access_property(self, prop):
-        datas_new = []
-        for data in self.datas:
-            data_new = getattr(data, prop, None)
-            if data_new == None: 
-                raise CollectionErrorProperty(prop)
-            datas_new.append(data_new)
+        if len(self.contexts) == 0:
+            raise CollectionErrorEmpty()
 
-        self.datas = datas_new
+    def access_property(self, context, props):
+        data, ls = context
+        for prop in props:
+            data = getattr(data, prop, None)
+            if data == None:
+                raise CollectionErrorProperty(prop)
+        return data, ls
 
     def accessable_property(self):
-        data = self.datas[0]
+        context = self.contexts[0]
         if len(self.property) > 0:
-            data = getattr(data, self.property, None)
-        return sorted(dir(data))
-
+            context = self.access_property(context, [self.property])
+        return sorted(dir(context[0]))
+    
     def transform(self, erna):
         for op, value in erna[:-1]:
-            if op == ERNA.op_map:
-                self.transform_op_map(value)
+
+            if op == ERNA.op_prop:
+                self.transform_op_prop(value)
+
             elif op == ERNA.op_flatten:
                 self.transform_op_flatten()
+
+            elif op == ERNA.op_sort:
+                self.transform_op_sort(value)
+
+            elif op == ERNA.op_filter:
+                self.transform_op_filter(value)
+
+            elif op == ERNA.op_take:
+                self.transform_op_take(value)
+
+            elif op == ERNA.op_var:
+                self.transform_op_var(value)
+
             else:
                 raise CollectionErrorOperation()
-        
-        _, props = erna[-1]
-        self.transform_op_map(props[:-1])
-        self.property = props[-1]
 
-        data = getattr(self.datas[0], self.property, None)
-        if data == None:
-            raise CollectionErrorProperty(props[-1])
+        op, value = erna[-1]
+        if op != ERNA.op_prop:
+            raise CollectionErrorNoPropertyAccessAtLast()
         else:
-            self.property_type = type(data)
+            self.transform_op_prop_last(value)
 
-    def transform_op_map(self, props):
-        for prop in props:
-            self.access_property(prop)
-        
+    def transform_op_prop(self, props):
+        contexts_new = []
+        for context in self.contexts:
+            context_new = self.access_property(context, props)
+            contexts_new.append(context_new)
+        self.contexts = contexts_new
+
+    def transform_op_prop_last(self, props):
+        self.transform_op_prop(props[0:-1])
+
+        context = self.contexts[0]
+        data, _ = context
+        self.data_type = type(data)
+
+        self.property = props[-1]
+        prop_data, _ = self.access_property(context, props[-1:])
+        self.property_type = type(prop_data)
+
     def transform_op_flatten(self):
-        datas_new = []
-        for datas in self.datas:
-            for data in datas:
-                datas_new.append(data)
-                
-        self.datas = datas_new
-        self.property = ""
+        contexts_new = []
+        for context in self.contexts:
+            items, ls = context
+            if not hasattr(items, "__iter__"):
+                raise CollectionErrorFlatten()
+            for item in items:
+                contexts_new.append((item, ls))
+        self.contexts = contexts_new
+    
+    def transform_op_sort(self, expr):
+        gs = Expression_Globals
+        length = len(self.contexts)
+
+        def sort_key(context):
+            data, ls = context
+            ls_new = {"data" : data, "length" : length}
+            eval(expr, gs, ChainMap(ls_new, ls))
+
+        try:
+            self.contexts.sort(sort_key)
+        except Exception as e:
+            raise CollectionErrorException(e)        
+            
+    def transform_op_filter(self, expr):
+        gs = Expression_Globals
+        contexts_new = []
+        length = len(self.contexts)
+        try:
+            for index, context in enumerate(self.contexts):
+                data, ls = context
+                ls_new = {"data" : data, "index" : index, "length" : length}
+                if eval(expr, gs, ChainMap(ls_new, ls)):
+                    contexts_new.append(context)
+        except Exception as e:
+            raise CollectionErrorException(e)
+            
+    def transform_op_take(self, numbers):
+        start, stop, step = numbers
+        try:
+            self.contexts = self.contexts[start:stop:step]
+        except Exception as e:
+            raise CollectionErrorException(e)
+
+    def transform_op_var(self, name):
+        context_new = []
+        for data, ls in self.contexts:
+            context_new.append(data, ChainMap({name : data}, ls))
+        self.contexts = context_new
 
     def eval_assign_exp(self, exp):
         self.datas_assign = []
 
-        import assign_exp_globals.AssignExpGlobals as gs
+        gs = Expression_Globals
 
         try:
-            length = len(self.datas)
+            length = len(self.contexts)
 
-            for index, data in enumerate(self.datas):
-                ls = { "length" : length , "data" : data, "index" : index }
+            for index, context in enumerate(self.contexts):
+                data, ls = context
+                ls_new = { "length" : length , "data" : data, "index" : index }
 
-                data_assign = eval(exp, gs, ls)
-                
-                prop = getattr(data, self.property)
-                expect, actual = type(prop), type(data_assign)
-                if expect != actual:
-                    raise(AssignExpErrorInconsistantType(expect, actual))
+                data_assign = eval(exp, gs, ChainMap(ls_new, ls))
+
+                expect_type, actual_type = self.property_type, type(data_assign)
+                if expect_type != actual_type:
+                    raise(AssignExpErrorInconsistantType(expect_type, actual_type))
                 
                 self.datas_assign.append(data_assign)
 
@@ -324,7 +372,8 @@ class Collection():
 
     def batch_assign(self):
         try:
-            for data, data_assign in zip(self.datas, self.datas_assign):
+            for context, data_assign in zip(self.contexts, self.datas_assign):
+                data, _ = context
                 setattr(data, self.property, data_assign)
 
         except Exception as e:
@@ -384,24 +433,24 @@ class BatchAssign_Control():
         try:
             self.update_internal()
 
-        except AssignExpError as error:
-            if isinstance(error, AssignExpErrorIndex):
-                props.assign_exp_error_indicator = props.assign_exp[0:error.index] + "^"
-            props.assign_exp_error = str(error)
-
-        except CollectionError as error:
-            props.collection_error = str(error)
-
-        except ERNAError as error:
-            if isinstance(error, ERNAErrorIndex):
-                props.erna_error_indicator = props.erna[0:error.index] + "^"
-            props.erna_error = str(error)
-
         except Exception as error:
-            props.unexpected_error = str(error)
+            print_traceback_and_set_clipboard()
 
-        if self.settings().enable_debug_infomation:
-            self.print_traceback_and_set_clipboard()            
+            if isinstance(error, AssignExpError):
+                if isinstance(error, AssignExpErrorIndex):
+                    props.assign_exp_error_indicator = props.assign_exp[0:error.index] + "^"
+                props.assign_exp_error = str(error)
+
+            elif isinstance(error, CollectionError):
+                props.collection_error = str(error)
+
+            elif isinstance(error, ERNAError):
+                if isinstance(error, ERNAErrorIndex):
+                    props.erna_error_indicator = props.erna[0:error.index] + "^"
+                props.erna_error = str(error)
+
+            else:
+                props.unexpected_error = str(error)
     
     def update_internal(self):
         self.selection = Selection()

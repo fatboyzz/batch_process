@@ -1,6 +1,6 @@
 import re
 
-AssignExpGlobals = {
+Expression_Globals = {
     "__builtins__" : __builtins__,
     "re" : re,
 }

@@ -40,14 +40,13 @@ def counter(n):
         return c
     return count
 
-
 def get_clipboard():
     return bpy.context.window_manager.clipboard
 
 def set_clipboard(s):
     bpy.context.window_manager.clipboard = s
 
-def print_traceback_and_set_clipboard(self):
+def print_traceback_and_set_clipboard():
     etype, value, tb = sys.exc_info()
     if tb == None: return
         

@@ -16,6 +16,7 @@ bl_info = {
 
 import importlib
 from . import utils
+from . import expression_globals
 from . import model
 from . import control
 from . import view
@@ -28,6 +29,8 @@ modules = (
 
 def register():
     importlib.reload(utils)
+    importlib.reload(expression_globals)
+    
     for mod in modules:
         importlib.reload(mod)
         utils.register_module(mod)

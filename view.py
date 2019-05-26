@@ -153,14 +153,15 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         
     def draw_collection(self):
         collection = Control.collection
-        if not issubclass(collection.property_type, bpy.types.bpy_struct): return
+        if not issubclass(collection.data_type, bpy.types.bpy_struct): return
 
         layout = self.layout.box()
         layout.label(text = "Assign Preview: ")
         props = Control.properties()
 
         layout = layout.column(align = True)
-        for index, data in enumerate(collection.datas):
+        for index, context in enumerate(collection.contexts):
+            data, _ = context
             layout_row = layout.row()
 
             layout_row.prop(
