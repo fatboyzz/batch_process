@@ -10,6 +10,7 @@ class BatchAssign_OP_ControlUpdate(bpy.types.Operator):
     bl_idname = "batch_assign.control_update"
     bl_label = "Update Collection"
     bl_description = "Update Collection"
+
     def execute(self, context):
         Control.update()
         return {'FINISHED'}
@@ -19,6 +20,7 @@ class BatchAssign_OP_ControlBatchAssign(bpy.types.Operator):
     bl_idname = "batch_assign.control_batch_assign"
     bl_label = "Update Collection"
     bl_description = "Batch Assign Value"
+    
     def execute(self, context):
         Control.batch_assign()
         return {'FINISHED'}
@@ -35,12 +37,11 @@ class BatchAssign_PT_SettingsPanel(bpy.types.Panel):
         layout = self.layout.column(align = True)
         settings = Control.settings()
         annotation = settings.__annotations__
-
-        for prop, (_, infos) in annotation.items():
+        
+        for prop in annotation.keys():
             layout.prop(
                 data = settings,
                 property = prop,
-                text = infos["description"],
             )
         
 @append(register_classes)
@@ -51,19 +52,19 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "Misc"
     
-    def draw_error(self, layout, err) -> bool:
-        if len(err) > 0:
-            layout.label(text = err, icon = "ERROR")
+    def draw_error(self, layout, error) -> bool:
+        if len(error) > 0:
+            layout.label(text = error, icon = "ERROR")
             return True
         else:
             return False
 
     def draw_error_indicator(self, layout, indicator) -> bool:
-        props = Control.properties()
+        errors = Control.errors()
 
-        if len(getattr(props, indicator)) > 0:
+        if len(getattr(errors, indicator)) > 0:
             layout.prop(
-                data = props,
+                data = errors,
                 property = indicator,
                 text = "",
                 icon = "ERROR",
@@ -92,6 +93,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
         layout_column = layout.column(align = True)
         props = Control.properties()        
+        errors = Control.errors()
 
         layout_column.prop(
             data = props,
@@ -101,7 +103,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         )
 
         self.draw_error_indicator(layout_column, "erna_error_indicator")
-        self.draw_error(layout, props.erna_error)
+        self.draw_error(layout, errors.erna_error)
 
         self.draw_assign_expression()
 
@@ -111,6 +113,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
         layout_column = layout.column(align = True)
         props = Control.properties()
+        errors = Control.errors()
 
         layout_column.prop(
             data = props,
@@ -120,7 +123,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         )
     
         self.draw_error_indicator(layout_column, "assign_exp_error_indicator")
-        self.draw_error(layout, props.assign_exp_error)
+        self.draw_error(layout, errors.assign_exp_error)
 
         self.draw_assign_button()
 
@@ -135,48 +138,51 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
     def draw_errors(self):
         layout = self.layout
-        props = Control.properties()
+        errors = Control.errors()
 
-        err = Control.check_selection()
-        if self.draw_error(layout, err): return
+        error = errors.unexpected_error
+        if self.draw_error(layout, error): return
 
-        err = props.unexpected_error
-        if self.draw_error(layout, err): return
+        error = errors.selection_error
+        if self.draw_error(layout, error): return
 
-        err = props.erna_error
-        if len(err) > 0: return
+        error = errors.erna_error
+        if len(error) > 0: return
 
-        err = props.collection_error
-        if self.draw_error(layout, err): return
+        error = errors.collection_error
+        if self.draw_error(layout, error): return
 
         self.draw_collection()
         
     def draw_collection(self):
         collection = Control.collection
-        if not issubclass(collection.data_type, bpy.types.bpy_struct): return
+        if collection is None: return
 
         layout = self.layout.box()
         layout.label(text = "Assign Preview: ")
-        props = Control.properties()
 
         layout = layout.column(align = True)
         for index, context in enumerate(collection.contexts):
             data, _ = context
-            layout_row = layout.row()
+            layout_row = layout.row(align = True)
 
-            layout_row.prop(
-                data = data,
-                property = collection.property,
-                text = "",
-            )
+            if issubclass(collection.data_type, bpy.types.bpy_struct): 
+                layout_row.prop(
+                    data = data,
+                    property = collection.property,
+                    text = "",
+                )
+            else:
+                layout_row.label(
+                    text = str(getattr(data, collection.property))
+                )
             
-            err = props.assign_exp_error
-            if len(err) > 0: continue
+            error = Control.errors().assign_exp_error
+            if len(error) > 0: continue
 
             layout_row.label(
                 text = str(collection.datas_assign[index])
             )
-                
 
         self.draw_accessable_property()
 
@@ -185,5 +191,5 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout.label(text = "Accessable Property: ")
 
         layout = layout.column_flow(align = True, columns = 2)
-        for prop in Control.collection.accessable_property():
+        for prop in Control.accessable_property():
             layout.label(text = prop)

@@ -8,7 +8,7 @@ bl_info = {
     "version": (1, 0, 0),
     "blender": (2, 80, 0),
     "location": (
-        "N Panel > Misc > Name Symmetrizer"
+        "N Panel > Misc > Batch Assign"
     ),
     "support": "COMMUNITY",
     "category": "Object"

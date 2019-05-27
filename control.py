@@ -11,19 +11,16 @@ register_classes = []
 class Selection():
     def __init__(self):
         self.datas = bpy.context.selected_objects
+        self.check_selection_empty()
+        self.check_selection_changed()
 
     def check_selection_empty(self):
-        return len(self.datas) == 0
+        if len(self.datas) == 0:
+            raise SelectionErrorEmpty()
 
     def check_selection_changed(self):
-        return self.datas != bpy.context.selected_objects
-
-    def check_selection_inconsistant_type(self):
-        data_type = self.datas[0].type
-        for data in self.datas[1:]:
-            if data.type != data_type: 
-                return True
-        return False
+        if self.datas != bpy.context.selected_objects:
+            raise SelectionErrorChanged()
 
 class ERNA():
     def __init__(self, s : str):
@@ -42,7 +39,7 @@ class ERNA():
         (t_symbol, re.compile(r"""[\.\*@|\[:\]\%]""")),
         (t_name, re.compile(r"""[A-Za-z_][A-Za-z_0-9]*""")),
         (t_number, re.compile(r"""[0-9-]+""")),
-        (t_expr, re.compile(r"""$[^$]*$""")),
+        (t_expr, re.compile(r"""\$[^\$]*\$""")),
     ]
 
     def tokens(self):
@@ -60,6 +57,10 @@ class ERNA():
                 yield self.t_stop, self.s_index, ""
                 return
 
+            if self.s[self.s_index].isspace():
+                yield self.t_stop, self.s_index, ""
+                return
+                
             for t, regex in self.re_table:
                 match = regex.match(self.s, self.s_index)
                 if match:
@@ -187,13 +188,13 @@ class ERNA():
         """Return (op_sort, expr)"""
         self.match_symbol("@")
         expr = self.match_token(self.t_expr)
-        return self.op_sort, expr
+        return self.op_sort, expr[1:-1]
 
     def parse_op_filter(self):
         """Return (op_filter_xx, expr)"""
         self.match_symbol("|")
         expr = self.match_token(self.t_expr)
-        return self.op_filter, expr
+        return self.op_filter, expr[1:-1]
 
     def parse_op_take(self):
         """Return (op_take, (start, stop, step))"""
@@ -311,12 +312,12 @@ class Collection():
         def sort_key(context):
             data, ls = context
             ls_new = {"data" : data, "length" : length}
-            eval(expr, gs, ChainMap(ls_new, ls))
+            return eval(expr, gs, ChainMap(ls_new, ls))
 
         try:
-            self.contexts.sort(sort_key)
-        except Exception as e:
-            raise CollectionErrorException(e)        
+            self.contexts.sort(key=sort_key)
+        except Exception as error:
+            raise CollectionErrorException(error) 
             
     def transform_op_filter(self, expr):
         gs = Expression_Globals
@@ -328,15 +329,15 @@ class Collection():
                 ls_new = {"data" : data, "index" : index, "length" : length}
                 if eval(expr, gs, ChainMap(ls_new, ls)):
                     contexts_new.append(context)
-        except Exception as e:
-            raise CollectionErrorException(e)
+        except Exception as error:
+            raise CollectionErrorException(error) 
             
     def transform_op_take(self, numbers):
         start, stop, step = numbers
         try:
             self.contexts = self.contexts[start:stop:step]
-        except Exception as e:
-            raise CollectionErrorException(e)
+        except Exception as error:
+            raise CollectionErrorException(error) 
 
     def transform_op_var(self, name):
         context_new = []
@@ -348,27 +349,26 @@ class Collection():
         self.datas_assign = []
 
         gs = Expression_Globals
+        length = len(self.contexts)
 
         try:
-            length = len(self.contexts)
-
             for index, context in enumerate(self.contexts):
                 data, ls = context
                 ls_new = { "length" : length , "data" : data, "index" : index }
 
                 data_assign = eval(exp, gs, ChainMap(ls_new, ls))
 
-                expect_type, actual_type = self.property_type, type(data_assign)
-                if expect_type != actual_type:
-                    raise(AssignExpErrorInconsistantType(expect_type, actual_type))
+                expect, actual = self.property_type, type(data_assign)
+                if expect != actual:
+                    raise AssignExpErrorInconsistantType(expect, actual)
                 
                 self.datas_assign.append(data_assign)
 
-        except SyntaxError as e:
-            raise AssignExpErrorIndex(e.offset, e.msg)
+        except SyntaxError as error:
+            raise AssignExpErrorIndex(error.offset, error.msg)
 
-        except Exception as e:
-            raise AssignExpErrorException(e)
+        except Exception as error:
+            raise AssignExpErrorException(error)
 
     def batch_assign(self):
         try:
@@ -376,8 +376,8 @@ class Collection():
                 data, _ = context
                 setattr(data, self.property, data_assign)
 
-        except Exception as e:
-            raise CollectionErrorAssign(e)
+        except Exception as error:
+            raise CollectionErrorAssign(error) 
 
 @append(register_classes)
 class BatchAssign_Control():
@@ -386,18 +386,30 @@ class BatchAssign_Control():
     def register_module(cls):
         from bpy.props import PointerProperty
         S = bpy.types.Scene
-        S.batch_assign_settings = PointerProperty(type=BatchAssign_Settings)
-        S.batch_assign_properties = PointerProperty(type=BatchAssign_Properties)
+
+        S.batch_assign_settings = \
+            PointerProperty(type=BatchAssign_Settings)
+
+        S.batch_assign_errors = \
+            PointerProperty(type=BatchAssign_Errors)
+
+        S.batch_assign_properties = \
+            PointerProperty(type=BatchAssign_Properties)
 
     @classmethod
     def unregister_module(cls):
         S = bpy.types.Scene
         del S.batch_assign_properties
+        del S.batch_assign_errors
         del S.batch_assign_settings
 
     @classmethod
     def settings(cls):
         return bpy.context.scene.batch_assign_settings
+
+    @classmethod
+    def errors(cls):
+        return bpy.context.scene.batch_assign_errors
 
     @classmethod
     def properties(cls):
@@ -409,60 +421,64 @@ class BatchAssign_Control():
         self.collection = None
         self.traceback = None
 
-    def check_selection(self):
-        if self.selection == None:
-            return "Click Update To Start"
-        elif self.selection.check_selection_empty():
-            return "Selection Empty"
-        elif self.selection.check_selection_changed():
-            return "Selection Changed Click Update"
-        elif self.selection.check_selection_inconsistant_type():
-            return "Selection Inconsistant Type"
-        return ""
-    
+    def clear_errors(self):
+        errors = self.errors()
+        errors.unexpected_error = ""
+        errors.selection_error = ""
+        errors.erna_error = ""
+        errors.erna_error_indicator = ""
+        errors.assign_exp_error = ""
+        errors.assign_exp_error_indicator = ""
+        errors.collection_error = ""
+
     def update(self):
-        props = self.properties()
-
-        props.unexpected_error = ""
-        props.erna_error = ""
-        props.erna_error_indicator = ""
-        props.assign_exp_error = ""
-        props.assign_exp_error_indicator = ""
-        props.collection_error = ""
-
+        self.clear_errors()
         try:
-            self.update_internal()
+            self.selection = Selection()
+
+            erna_node = ERNA(self.properties().erna).parse()
+
+            self.collection = Collection(self.selection)
+            self.collection.transform(erna_node)
+
+            assign_exp = self.properties().assign_exp
+            self.collection.eval_assign_exp(assign_exp)
 
         except Exception as error:
-            print_traceback_and_set_clipboard()
+            props = self.properties()
+            errors = self.errors()
+
+            if self.settings().enable_debug_information:
+                print_traceback_and_set_clipboard()
+
+            if isinstance(error, SelectionError):
+                errors.selection_error = str(error)
 
             if isinstance(error, AssignExpError):
                 if isinstance(error, AssignExpErrorIndex):
-                    props.assign_exp_error_indicator = props.assign_exp[0:error.index] + "^"
-                props.assign_exp_error = str(error)
+                    errors.assign_exp_error_indicator = \
+                        props.assign_exp[0:error.index] + "^"
+                errors.assign_exp_error = str(error)
 
             elif isinstance(error, CollectionError):
-                props.collection_error = str(error)
+                errors.collection_error = str(error)
 
             elif isinstance(error, ERNAError):
                 if isinstance(error, ERNAErrorIndex):
-                    props.erna_error_indicator = props.erna[0:error.index] + "^"
-                props.erna_error = str(error)
+                    errors.erna_error_indicator = \
+                        props.erna[0:error.index] + "^"
+                errors.erna_error = str(error)
 
             else:
-                props.unexpected_error = str(error)
-    
-    def update_internal(self):
-        self.selection = Selection()
+                errors.unexpected_error = str(error)
 
-        erna_node = ERNA(self.properties().erna).parse()
+    def accessable_property(self):
+        props = self.collection.accessable_property()
+        if self.settings().enable_python_reserved_property:
+            return props
+        else:
+            return [prop for prop in props if not prop.startswith("_")]
 
-        self.collection = Collection(self.selection)
-        self.collection.transform(erna_node)
-
-        assign_exp = self.properties().assign_exp
-        self.collection.eval_assign_exp(assign_exp)
-        
     def batch_assign(self):
         self.collection.batch_assign()
     

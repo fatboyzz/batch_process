@@ -9,6 +9,12 @@ from bpy.props import (
 
 from .utils import *
 
+class SelectionError(Exception): pass
+class SelectionErrorEmpty(SelectionError): 
+    def __str__(self): return "Selection Empty"
+class SelectionErrorChanged(SelectionError):
+    def __str__(self): return "Selection Changed Click Update"
+
 class ERNAError(Exception): pass
 class ERNAErrorEmpty(ERNAError): 
     def __str__(self): return "ERNA Empty"
@@ -17,7 +23,7 @@ class ERNAErrorIndex(ERNAError):
         self.index = index
         self.message = message
     def __str__(self):
-        return "At {0} : {1}".format(self.index, self.message)
+        return "{0} : {1}".format(self.index, self.message)
 
 class AssignExpError(Exception): pass
 class AssignExpEmpty(AssignExpError): 
@@ -27,7 +33,7 @@ class AssignExpErrorIndex(AssignExpError):
         self.index = index
         self.message = message
     def __str__(self):
-        return "At {0} : {1}".format(self.index, self.message)
+        return "{0} : {1}".format(self.index, self.message)
 class AssignExpErrorInconsistantType(AssignExpError):
     def __init__(self, expect, actual):
         self.expect = expect
@@ -66,29 +72,34 @@ class CollectionErrorException(CollectionError):
         return str(self.exception)    
 class CollectionErrorAssign(CollectionError): pass
 
-
 register_classes = []
 
 @append(register_classes)
 class BatchAssign_Settings(bpy.types.PropertyGroup):
-    enable_debug_infomation : BoolProperty(
-        description = "Enable Debug Infomation",
+    enable_debug_information : BoolProperty(
+        name = "Enable Debug Information",
         default = False,
     )
 
     enable_erna_syntax_help : BoolProperty(
-        description = "Enable Extended RNA Syntax Help",
+        name = "Enable Extended RNA Syntax Help",
         default = True,
+    )
+
+    enable_python_reserved_property : BoolProperty(
+        name = "Enable Python Reserved Property",
+        default = False,
     )
 
 @append(register_classes)
 class BatchAssign_Errors(bpy.types.PropertyGroup):
-    pass
-
-@append(register_classes)
-class BatchAssign_Properties(bpy.types.PropertyGroup):
     unexpected_error : StringProperty(
         description = "Unexpected Error",
+        default = "",
+    )
+
+    selection_error : StringProperty(
+        description = "Selection Error",
         default = "",
     )
 
@@ -117,14 +128,19 @@ class BatchAssign_Properties(bpy.types.PropertyGroup):
         default = "",
     )
 
+def control_update(self, context):
+    bpy.ops.batch_assign.control_update()
+
+@append(register_classes)
+class BatchAssign_Properties(bpy.types.PropertyGroup):
     erna : StringProperty(
         description = "Extended RNA Data Path",
         default = "",
-        update = lambda self, context:
-            (bpy.ops.batch_assign.control_update(), None)[1]
+        update = control_update,
     )
 
     assign_exp : StringProperty(
         description = "Python Expression Of Assign Value",
         default = "",
+        update = control_update,
     )
