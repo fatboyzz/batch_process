@@ -8,7 +8,7 @@ from .expression_globals import *
 
 register_classes = []
 
-class Selection():
+class Selection:
     def __init__(self):
         self.datas = bpy.context.selected_objects
         self.check_selection_empty()
@@ -22,7 +22,7 @@ class Selection():
         if self.datas != bpy.context.selected_objects:
             raise SelectionErrorChanged()
 
-class ERNA():
+class ERNA:
     def __init__(self, s : str):
         self.s = s
     
@@ -222,9 +222,38 @@ class ERNA():
         name = self.match_token(self.t_name)
         return self.op_var, name
 
-class Collection():
+class Context:
+    def __init__(self, data, ls = {}):
+        self.data = data
+        self.ls = ls
+
+    def access_property(self, prop):
+        data = getattr(self.data, prop, None)
+        if data == None:
+            raise CollectionErrorProperty(prop)
+        return Context(data, self.ls)
+
+    def access_properties(self, props):
+        data = self.data
+        for prop in props:
+            data = getattr(self.data, prop, None)
+            if data == None:
+                raise CollectionErrorProperty(prop)
+        return Context(data, self.ls)
+    
+    def accessable_properties(self) -> [str]:
+        return sorted(dir(self.data))
+
+    def extend_ls(self, ls_more):
+        return Context(self.data, ChainMap(ls_more, self.ls))
+
+    def eval(self, expr):
+        data = eval(expr, Expression_Globals, self.ls)
+        return Context(data, self.ls)
+
+class Collection:
     def __init__(self, selection):
-        self.contexts = [(data, {}) for data in selection.datas]
+        self.contexts = [Context(data) for data in selection.datas]
         self.property = ""
         self.property_type = type(None)
         self.data_type = type(None)
@@ -233,19 +262,11 @@ class Collection():
         if len(self.contexts) == 0:
             raise CollectionErrorEmpty()
 
-    def access_property(self, context, props):
-        data, ls = context
-        for prop in props:
-            data = getattr(data, prop, None)
-            if data == None:
-                raise CollectionErrorProperty(prop)
-        return data, ls
-
-    def accessable_property(self):
+    def accessable_properties(self):
         context = self.contexts[0]
         if len(self.property) > 0:
-            context = self.access_property(context, [self.property])
-        return sorted(dir(context[0]))
+            context = context.access_property(self.property)
+        return context.accessable_properties()
     
     def transform(self, erna):
         for op, value in erna[:-1]:
@@ -278,41 +299,38 @@ class Collection():
             self.transform_op_prop_last(value)
 
     def transform_op_prop(self, props):
-        contexts_new = []
-        for context in self.contexts:
-            context_new = self.access_property(context, props)
-            contexts_new.append(context_new)
-        self.contexts = contexts_new
+        self.contexts = [
+            context.access_properties(props) 
+            for context in self.contexts
+        ]
 
     def transform_op_prop_last(self, props):
         self.transform_op_prop(props[0:-1])
 
         context = self.contexts[0]
-        data, _ = context
-        self.data_type = type(data)
-
+        self.data_type = type(context.data)
         self.property = props[-1]
-        prop_data, _ = self.access_property(context, props[-1:])
-        self.property_type = type(prop_data)
+        self.property_type = type(context.access_property(props[-1]).data)
 
     def transform_op_flatten(self):
         contexts_new = []
         for context in self.contexts:
-            items, ls = context
+            items, ls = context.data, context.ls
+
             if not hasattr(items, "__iter__"):
                 raise CollectionErrorFlatten()
+
             for item in items:
-                contexts_new.append((item, ls))
+                contexts_new.append(Context(item, ls))
+
         self.contexts = contexts_new
     
     def transform_op_sort(self, expr):
-        gs = Expression_Globals
         length = len(self.contexts)
 
         def sort_key(context):
-            data, ls = context
-            ls_new = {"data" : data, "length" : length}
-            return eval(expr, gs, ChainMap(ls_new, ls))
+            ls_new = {"data" : context.data, "length" : length}
+            return context.extend_ls(ls_new).eval(expr).data
 
         try:
             self.contexts.sort(key=sort_key)
@@ -320,15 +338,23 @@ class Collection():
             raise CollectionErrorException(error) 
             
     def transform_op_filter(self, expr):
-        gs = Expression_Globals
         contexts_new = []
         length = len(self.contexts)
+
         try:
             for index, context in enumerate(self.contexts):
-                data, ls = context
-                ls_new = {"data" : data, "index" : index, "length" : length}
-                if eval(expr, gs, ChainMap(ls_new, ls)):
+                ls_new = {
+                    "data" : context.data, 
+                    "index" : index, 
+                    "length" : length,
+                }
+                if context.extend_ls(ls_new).eval(expr).data:
                     contexts_new.append(context)
+
+            if len(contexts_new) == 0:
+                raise CollectionErrorEmpty()
+
+            self.contexts = contexts_new
         except Exception as error:
             raise CollectionErrorException(error) 
             
@@ -340,23 +366,27 @@ class Collection():
             raise CollectionErrorException(error) 
 
     def transform_op_var(self, name):
-        context_new = []
-        for data, ls in self.contexts:
-            context_new.append(data, ChainMap({name : data}, ls))
-        self.contexts = context_new
+        self.contexts = [
+            context.extend_ls({name : context.data})
+            for context in self.contexts
+        ]
 
-    def eval_assign_exp(self, exp):
+    def eval_assign_expr(self, expr):
         self.datas_assign = []
-
-        gs = Expression_Globals
         length = len(self.contexts)
 
         try:
             for index, context in enumerate(self.contexts):
-                data, ls = context
-                ls_new = { "length" : length , "data" : data, "index" : index }
+                if len(self.property) > 0:
+                    context = context.access_property(self.property)
+                
+                ls_new = { 
+                    "data" : context.data, 
+                    "index" : index,
+                    "length" : length, 
+                }
 
-                data_assign = eval(exp, gs, ChainMap(ls_new, ls))
+                data_assign = context.extend_ls(ls_new).eval(expr).data
 
                 expect, actual = self.property_type, type(data_assign)
                 if expect != actual:
@@ -373,28 +403,21 @@ class Collection():
     def batch_assign(self):
         try:
             for context, data_assign in zip(self.contexts, self.datas_assign):
-                data, _ = context
-                setattr(data, self.property, data_assign)
+                setattr(context.data, self.property, data_assign)
 
         except Exception as error:
             raise CollectionErrorAssign(error) 
 
 @append(register_classes)
-class BatchAssign_Control():
+class BatchAssign_Control:
 
     @classmethod
     def register_module(cls):
         from bpy.props import PointerProperty
-        S = bpy.types.Scene
-
-        S.batch_assign_settings = \
-            PointerProperty(type=BatchAssign_Settings)
-
-        S.batch_assign_errors = \
-            PointerProperty(type=BatchAssign_Errors)
-
-        S.batch_assign_properties = \
-            PointerProperty(type=BatchAssign_Properties)
+        S, P = bpy.types.Scene, PointerProperty
+        S.batch_assign_settings = P(type=BatchAssign_Settings)
+        S.batch_assign_errors = P(type=BatchAssign_Errors)
+        S.batch_assign_properties = P(type=BatchAssign_Properties)
 
     @classmethod
     def unregister_module(cls):
@@ -427,8 +450,8 @@ class BatchAssign_Control():
         errors.selection_error = ""
         errors.erna_error = ""
         errors.erna_error_indicator = ""
-        errors.assign_exp_error = ""
-        errors.assign_exp_error_indicator = ""
+        errors.assign_expr_error = ""
+        errors.assign_expr_error_indicator = ""
         errors.collection_error = ""
 
     def update(self):
@@ -441,8 +464,8 @@ class BatchAssign_Control():
             self.collection = Collection(self.selection)
             self.collection.transform(erna_node)
 
-            assign_exp = self.properties().assign_exp
-            self.collection.eval_assign_exp(assign_exp)
+            assign_expr = self.properties().assign_expr
+            self.collection.eval_assign_expr(assign_expr)
 
         except Exception as error:
             props = self.properties()
@@ -456,24 +479,24 @@ class BatchAssign_Control():
 
             if isinstance(error, AssignExpError):
                 if isinstance(error, AssignExpErrorIndex):
-                    errors.assign_exp_error_indicator = \
-                        props.assign_exp[0:error.index] + "^"
-                errors.assign_exp_error = str(error)
+                    indicator = props.assign_expr[0:error.index] + "^"
+                    errors.assign_expr_error_indicator = indicator
+                errors.assign_expr_error = str(error)
 
             elif isinstance(error, CollectionError):
                 errors.collection_error = str(error)
 
             elif isinstance(error, ERNAError):
                 if isinstance(error, ERNAErrorIndex):
-                    errors.erna_error_indicator = \
-                        props.erna[0:error.index] + "^"
+                    indicator = props.erna[0:error.index] + "^"
+                    errors.erna_error_indicator = indicator
                 errors.erna_error = str(error)
 
             else:
                 errors.unexpected_error = str(error)
 
-    def accessable_property(self):
-        props = self.collection.accessable_property()
+    def accessable_properties(self):
+        props = self.collection.accessable_properties()
         if self.settings().enable_python_reserved_property:
             return props
         else:

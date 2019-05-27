@@ -26,8 +26,8 @@ class BatchAssign_OP_ControlBatchAssign(bpy.types.Operator):
         return {'FINISHED'}
 
 @append(register_classes)
-class BatchAssign_PT_SettingsPanel(bpy.types.Panel):
-    bl_idname = "BatchAssign_PT_SettingsPanel"
+class BatchAssign_PT_Settings(bpy.types.Panel):
+    bl_idname = "BatchAssign_PT_Settings"
     bl_label = "Batch Assign Settings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -43,7 +43,15 @@ class BatchAssign_PT_SettingsPanel(bpy.types.Panel):
                 data = settings,
                 property = prop,
             )
-        
+
+# @append(register_classes)
+# class BatchAssign_ERNA_Preset(bpy.types.Panel):
+#     bl_idname = "BatchAssign_PT_Preset"
+#     bl_label = "Batch Assign Preset"
+#     bl_space_type = "VIEW_3D"
+#     bl_region_type = "UI"
+#     bl_category = "Misc"
+    
 @append(register_classes)
 class BatchAssign_PT_MainPanel(bpy.types.Panel):
     bl_idname = "BatchAssign_PT_MainPanel"
@@ -89,7 +97,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
     def draw_erna(self):
         layout = self.layout.box()
-        layout.label(text = "Extended RNA Data Path:")
+        layout.label(text = "ERNA Data Path:")
 
         layout_column = layout.column(align = True)
         props = Control.properties()        
@@ -105,9 +113,9 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         self.draw_error_indicator(layout_column, "erna_error_indicator")
         self.draw_error(layout, errors.erna_error)
 
-        self.draw_assign_expression()
+        self.draw_assign_expr()
 
-    def draw_assign_expression(self):
+    def draw_assign_expr(self):
         layout = self.layout.box()
         layout.label(text = "Assign Expression: ")
 
@@ -117,13 +125,13 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
         layout_column.prop(
             data = props,
-            property = "assign_exp",
+            property = "assign_expr",
             text = "",
             icon = "TEXT",
         )
     
-        self.draw_error_indicator(layout_column, "assign_exp_error_indicator")
-        self.draw_error(layout, errors.assign_exp_error)
+        self.draw_error_indicator(layout_column, "assign_expr_error_indicator")
+        self.draw_error(layout, errors.assign_expr_error)
 
         self.draw_assign_button()
 
@@ -163,7 +171,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
         layout = layout.column(align = True)
         for index, context in enumerate(collection.contexts):
-            data, _ = context
+            data = context.data
             layout_row = layout.row(align = True)
 
             if issubclass(collection.data_type, bpy.types.bpy_struct): 
@@ -177,7 +185,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
                     text = str(getattr(data, collection.property))
                 )
             
-            error = Control.errors().assign_exp_error
+            error = Control.errors().assign_expr_error
             if len(error) > 0: continue
 
             layout_row.label(
@@ -191,5 +199,5 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout.label(text = "Accessable Property: ")
 
         layout = layout.column_flow(align = True, columns = 2)
-        for prop in Control.accessable_property():
+        for prop in Control.accessable_properties():
             layout.label(text = prop)

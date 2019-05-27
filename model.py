@@ -113,12 +113,12 @@ class BatchAssign_Errors(bpy.types.PropertyGroup):
         default = "",
     )
 
-    assign_exp_error : StringProperty(
+    assign_expr_error : StringProperty(
         description = "Assign Expression Error",
         default = "",
     )
 
-    assign_exp_error_indicator : StringProperty(
+    assign_expr_error_indicator : StringProperty(
         description = "Assign Expression Error Indicator",
         default = "",
     )
@@ -139,7 +139,7 @@ class BatchAssign_Properties(bpy.types.PropertyGroup):
         update = control_update,
     )
 
-    assign_exp : StringProperty(
+    assign_expr : StringProperty(
         description = "Python Expression Of Assign Value",
         default = "",
         update = control_update,
