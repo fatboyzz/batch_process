@@ -1,61 +1,33 @@
-import os.path
 import bpy
 from .utils import *
-from .control import Control
+from .main_control import *
 
 register_classes = []
 
 @append(register_classes)
-class BatchAssign_OP_ControlUpdate(bpy.types.Operator):
-    bl_idname = "batch_assign.control_update"
+class BatchAssign_OP_MainControlUpdate(bpy.types.Operator):
+    bl_idname = "batch_assign.main_control_update"
     bl_label = "Update Collection"
     bl_description = "Update Collection"
 
     def execute(self, context):
-        Control.update()
+        BatchAssign_MainControl.get().update()
         return {'FINISHED'}
 
 @append(register_classes)
-class BatchAssign_OP_ControlBatchAssign(bpy.types.Operator):
-    bl_idname = "batch_assign.control_batch_assign"
+class BatchAssign_OP_MainControlBatchAssign(bpy.types.Operator):
+    bl_idname = "batch_assign.main_control_batch_assign"
     bl_label = "Update Collection"
     bl_description = "Batch Assign Value"
     
     def execute(self, context):
-        Control.batch_assign()
+        BatchAssign_MainControl.get().update()
         return {'FINISHED'}
-
-@append(register_classes)
-class BatchAssign_PT_Settings(bpy.types.Panel):
-    bl_idname = "BatchAssign_PT_Settings"
-    bl_label = "Batch Assign Settings"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Misc"
-
-    def draw(self, context):
-        layout = self.layout.column(align = True)
-        settings = Control.settings()
-        annotation = settings.__annotations__
-        
-        for prop in annotation.keys():
-            layout.prop(
-                data = settings,
-                property = prop,
-            )
-
-# @append(register_classes)
-# class BatchAssign_ERNA_Preset(bpy.types.Panel):
-#     bl_idname = "BatchAssign_PT_Preset"
-#     bl_label = "Batch Assign Preset"
-#     bl_space_type = "VIEW_3D"
-#     bl_region_type = "UI"
-#     bl_category = "Misc"
     
 @append(register_classes)
 class BatchAssign_PT_MainPanel(bpy.types.Panel):
     bl_idname = "BatchAssign_PT_MainPanel"
-    bl_label = "Batch Assign"
+    bl_label = "Batch Assign Main"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Misc"
@@ -68,7 +40,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
             return False
 
     def draw_error_indicator(self, layout, indicator) -> bool:
-        errors = Control.errors()
+        errors = BatchAssign_MainErrors.get()
 
         if len(getattr(errors, indicator)) > 0:
             layout.prop(
@@ -89,7 +61,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout = self.layout
         layout.operator_context = 'EXEC_DEFAULT'
         layout.operator(
-            "batch_assign.control_update",
+            "batch_assign.main_control_update",
             text = "Update",
         )
 
@@ -100,11 +72,11 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout.label(text = "ERNA Data Path:")
 
         layout_column = layout.column(align = True)
-        props = Control.properties()        
-        errors = Control.errors()
+        model = BatchAssign_MainModel.get()
+        errors = BatchAssign_MainErrors.get()
 
         layout_column.prop(
-            data = props,
+            data = model,
             property = "erna",
             text = "",
             icon = "TEXT",
@@ -113,32 +85,32 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         self.draw_error_indicator(layout_column, "erna_error_indicator")
         self.draw_error(layout, errors.erna_error)
 
-        self.draw_assign_expr()
+        self.draw_expr()
 
-    def draw_assign_expr(self):
+    def draw_expr(self):
         layout = self.layout.box()
         layout.label(text = "Assign Expression: ")
 
         layout_column = layout.column(align = True)
-        props = Control.properties()
-        errors = Control.errors()
+        model = BatchAssign_MainModel.get()
+        errors = BatchAssign_MainErrors.get()
 
         layout_column.prop(
-            data = props,
-            property = "assign_expr",
+            data = model,
+            property = "expr",
             text = "",
             icon = "TEXT",
         )
     
-        self.draw_error_indicator(layout_column, "assign_expr_error_indicator")
-        self.draw_error(layout, errors.assign_expr_error)
+        self.draw_error_indicator(layout_column, "expr_error_indicator")
+        self.draw_error(layout, errors.expr_error)
 
         self.draw_assign_button()
 
     def draw_assign_button(self):
         layout = self.layout
         layout.operator(
-            "batch_assign.control_batch_assign",
+            "batch_assign.main_control_batch_assign",
             text = "Assign",
         )
 
@@ -146,7 +118,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
 
     def draw_errors(self):
         layout = self.layout
-        errors = Control.errors()
+        errors = BatchAssign_MainErrors.get()
 
         error = errors.unexpected_error
         if self.draw_error(layout, error): return
@@ -163,7 +135,8 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         self.draw_collection()
         
     def draw_collection(self):
-        collection = Control.collection
+        control = BatchAssign_MainControl.get()
+        collection = control.collection
         if collection is None: return
 
         layout = self.layout.box()
@@ -185,7 +158,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
                     text = str(getattr(data, collection.property))
                 )
             
-            error = Control.errors().assign_expr_error
+            error = BatchAssign_MainErrors.get().expr_error
             if len(error) > 0: continue
 
             layout_row.label(
@@ -199,5 +172,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         layout.label(text = "Accessable Property: ")
 
         layout = layout.column_flow(align = True, columns = 2)
-        for prop in Control.accessable_properties():
+
+        control = BatchAssign_MainControl.get()
+        for prop in control.accessable_properties():
             layout.label(text = prop)

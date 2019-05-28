@@ -15,26 +15,48 @@ bl_info = {
 }
 
 import importlib
+
 from . import utils
 from . import expression_globals
-from . import model
-from . import control
-from . import view
 
-modules = (
-    model,
-    control,
-    view,
+from . import settings_model
+from . import preset_model
+from . import main_model
+
+from . import preset_control
+from . import main_control
+
+from . import settings_view
+from . import preset_view
+from . import main_view
+
+
+reload_modules = (
+    utils,
+    expression_globals,
+)
+
+register_modules = (
+    settings_model,
+    preset_model,
+    main_model,
+
+    preset_control,
+    main_control,
+
+    settings_view,
+    preset_view,
+    main_view,
 )
 
 def register():
-    importlib.reload(utils)
-    importlib.reload(expression_globals)
-    
-    for mod in modules:
+    for mod in reload_modules:
+        importlib.reload(mod)
+
+    for mod in register_modules:
         importlib.reload(mod)
         utils.register_module(mod)
 
 def unregister():
-    for mod in reversed(modules):
+    for mod in reversed(register_modules):
         utils.unregister_module(mod)

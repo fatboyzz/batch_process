@@ -3,10 +3,13 @@ import bpy
 from collections import ChainMap
 
 from .utils import *
-from .model import *
 from .expression_globals import *
+from .settings_model import *
+from .main_model import *
+
 
 register_classes = []
+
 
 class Selection:
     def __init__(self):
@@ -21,6 +24,7 @@ class Selection:
     def check_selection_changed(self):
         if self.datas != bpy.context.selected_objects:
             raise SelectionErrorChanged()
+
 
 class ERNA:
     def __init__(self, s : str):
@@ -222,6 +226,7 @@ class ERNA:
         name = self.match_token(self.t_name)
         return self.op_var, name
 
+
 class Context:
     def __init__(self, data, ls = {}):
         self.data = data
@@ -241,15 +246,13 @@ class Context:
                 raise CollectionErrorProperty(prop)
         return Context(data, self.ls)
     
-    def accessable_properties(self) -> [str]:
-        return sorted(dir(self.data))
-
     def extend_ls(self, ls_more):
         return Context(self.data, ChainMap(ls_more, self.ls))
 
     def eval(self, expr):
         data = eval(expr, Expression_Globals, self.ls)
         return Context(data, self.ls)
+
 
 class Collection:
     def __init__(self, selection):
@@ -266,7 +269,20 @@ class Collection:
         context = self.contexts[0]
         if len(self.property) > 0:
             context = context.access_property(self.property)
-        return context.accessable_properties()
+        
+        props = sorted(dir(context.data))
+        settings = BatchAssign_SettingsModel.get()
+
+        if not settings.enable_python_reserved_property:
+            props = [prop for prop in props if not prop.startswith("_")] 
+            
+        if  not settings.enable_python_callable_property:
+            props = [
+                prop for prop in props 
+                if not callable(getattr(context.data, prop))
+            ]
+
+        return props
     
     def transform(self, erna):
         for op, value in erna[:-1]:
@@ -371,7 +387,7 @@ class Collection:
             for context in self.contexts
         ]
 
-    def eval_assign_expr(self, expr):
+    def eval_expr(self, expr):
         self.datas_assign = []
         length = len(self.contexts)
 
@@ -390,15 +406,15 @@ class Collection:
 
                 expect, actual = self.property_type, type(data_assign)
                 if expect != actual:
-                    raise AssignExpErrorInconsistantType(expect, actual)
+                    raise EXPRErrorInconsistantType(expect, actual)
                 
                 self.datas_assign.append(data_assign)
 
         except SyntaxError as error:
-            raise AssignExpErrorIndex(error.offset, error.msg)
+            raise EXPRErrorIndex(error.offset, error.msg)
 
         except Exception as error:
-            raise AssignExpErrorException(error)
+            raise EXPRErrorException(error)
 
     def batch_assign(self):
         try:
@@ -408,36 +424,9 @@ class Collection:
         except Exception as error:
             raise CollectionErrorAssign(error) 
 
-@append(register_classes)
-class BatchAssign_Control:
 
-    @classmethod
-    def register_module(cls):
-        from bpy.props import PointerProperty
-        S, P = bpy.types.Scene, PointerProperty
-        S.batch_assign_settings = P(type=BatchAssign_Settings)
-        S.batch_assign_errors = P(type=BatchAssign_Errors)
-        S.batch_assign_properties = P(type=BatchAssign_Properties)
-
-    @classmethod
-    def unregister_module(cls):
-        S = bpy.types.Scene
-        del S.batch_assign_properties
-        del S.batch_assign_errors
-        del S.batch_assign_settings
-
-    @classmethod
-    def settings(cls):
-        return bpy.context.scene.batch_assign_settings
-
-    @classmethod
-    def errors(cls):
-        return bpy.context.scene.batch_assign_errors
-
-    @classmethod
-    def properties(cls):
-        return bpy.context.scene.batch_assign_properties
-
+@singleton
+class BatchAssign_MainControl:
     def __init__(self):
         self.selection = None
         self.extended_rna = None
@@ -445,64 +434,63 @@ class BatchAssign_Control:
         self.traceback = None
 
     def clear_errors(self):
-        errors = self.errors()
+        errors = BatchAssign_MainErrors.get()
         errors.unexpected_error = ""
         errors.selection_error = ""
         errors.erna_error = ""
         errors.erna_error_indicator = ""
-        errors.assign_expr_error = ""
-        errors.assign_expr_error_indicator = ""
+        errors.expr_error = ""
+        errors.expr_error_indicator = ""
         errors.collection_error = ""
 
     def update(self):
+        model = BatchAssign_MainModel.get()
+
         self.clear_errors()
         try:
             self.selection = Selection()
-
-            erna_node = ERNA(self.properties().erna).parse()
+            erna_node = ERNA(model.erna).parse()
 
             self.collection = Collection(self.selection)
             self.collection.transform(erna_node)
 
-            assign_expr = self.properties().assign_expr
-            self.collection.eval_assign_expr(assign_expr)
+            expr = model.expr
+            self.collection.eval_expr(expr)
 
         except Exception as error:
-            props = self.properties()
-            errors = self.errors()
+            self.handle_errors(error)
 
-            if self.settings().enable_debug_information:
-                print_traceback_and_set_clipboard()
+    def handle_errors(self, error):
+        settings = BatchAssign_SettingsModel.get()
+        model = BatchAssign_MainModel.get()
+        errors = BatchAssign_MainErrors.get()
 
-            if isinstance(error, SelectionError):
-                errors.selection_error = str(error)
+        if settings.enable_debug_information:
+            print_traceback_and_set_clipboard()
 
-            if isinstance(error, AssignExpError):
-                if isinstance(error, AssignExpErrorIndex):
-                    indicator = props.assign_expr[0:error.index] + "^"
-                    errors.assign_expr_error_indicator = indicator
-                errors.assign_expr_error = str(error)
+        if isinstance(error, SelectionError):
+            errors.selection_error = str(error)
 
-            elif isinstance(error, CollectionError):
-                errors.collection_error = str(error)
+        if isinstance(error, EXPRError):
+            if isinstance(error, EXPRErrorIndex):
+                indicator = model.expr[0:error.index] + "^"
+                errors.expr_error_indicator = indicator
+            errors.expr_error = str(error)
 
-            elif isinstance(error, ERNAError):
-                if isinstance(error, ERNAErrorIndex):
-                    indicator = props.erna[0:error.index] + "^"
-                    errors.erna_error_indicator = indicator
-                errors.erna_error = str(error)
+        elif isinstance(error, CollectionError):
+            errors.collection_error = str(error)
 
-            else:
-                errors.unexpected_error = str(error)
+        elif isinstance(error, ERNAError):
+            if isinstance(error, ERNAErrorIndex):
+                indicator = model.erna[0:error.index] + "^"
+                errors.erna_error_indicator = indicator
+            errors.erna_error = str(error)
+
+        else:
+            errors.unexpected_error = str(error)
 
     def accessable_properties(self):
-        props = self.collection.accessable_properties()
-        if self.settings().enable_python_reserved_property:
-            return props
-        else:
-            return [prop for prop in props if not prop.startswith("_")]
+        return self.collection.accessable_properties()        
 
     def batch_assign(self):
         self.collection.batch_assign()
-    
-Control = BatchAssign_Control()
