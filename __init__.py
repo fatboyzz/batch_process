@@ -17,7 +17,7 @@ bl_info = {
 import importlib
 
 from . import utils
-from . import expression_globals
+from . import globals_model
 
 from . import settings_model
 from . import preset_model
@@ -33,7 +33,7 @@ from . import main_view
 
 reload_modules = (
     utils,
-    expression_globals,
+    globals_model,
 )
 
 register_modules = (

@@ -5,18 +5,10 @@ from bpy.props import (
     IntProperty,
     StringProperty,
     EnumProperty,
+    CollectionProperty,
 )
 
 from .utils import *
-
-
-class SelectionError(Exception): pass
-
-class SelectionErrorEmpty(SelectionError): 
-    def __str__(self): return "Selection Empty"
-        
-class SelectionErrorChanged(SelectionError):
-    def __str__(self): return "Selection Changed Click Update"
 
 
 class ERNAError(Exception): pass
@@ -30,34 +22,6 @@ class ERNAErrorIndex(ERNAError):
         self.message = message
     def __str__(self):
         return "{0} : {1}".format(self.index, self.message)
-
-
-class EXPRError(Exception): pass
-
-class EXPREmpty(EXPRError): 
-    def __str__(self): return "Assign Expression Empty"
-
-class EXPRErrorIndex(EXPRError):
-    def __init__(self, index, message):
-        self.index = index
-        self.message = message
-    def __str__(self):
-        return "{0} : {1}".format(self.index, self.message)
-
-class EXPRErrorInconsistantType(EXPRError):
-    def __init__(self, expect, actual):
-        self.expect = expect
-        self.actual = actual
-    def __str__(self):
-        return "Inconsistant Type Expect '{0}' Actual '{1}'".format(
-            self.expect.__name__, self.actual.__name__
-        )
-
-class EXPRErrorException(EXPRError):
-    def __init__(self, exception):
-        self.exception = exception
-    def __str__(self):
-        return str(self.exception)
 
 
 class CollectionError(Exception): pass
@@ -77,34 +41,62 @@ class CollectionErrorProperty(CollectionError):
     def __str__(self): 
         return "Unknown Property {0}".format(self.prop)
 
+class CollectionErrorSyntax(CollectionError):
+    def __init__(self, expr):
+        self.expr = expr
+    def __str__(self):
+        return "{0} : {1}".format(self.index, self.message)
+
 class CollectionErrorFlatten(CollectionError):
     def __init__(self, prop):
         self.prop = prop
     def __str__(self):
         return "Property {0} is not iterable".format(self.prop)
 
-class CollectionErrorException(CollectionError):
-    def __init__(self, exception):
-        self.exception = exception
+class CollectionErrorAssignType(CollectionError):
+    def __init__(self, expect, actual):
+        self.expect = expect
+        self.actual = actual
     def __str__(self):
-        return str(self.exception)    
+        return "Assign Type {0} to Type {1}".format(
+            self.expect.__name__, self.actual.__name__
+        )
 
-class CollectionErrorAssign(CollectionError): pass
+class CollectionErrorTransform(CollectionError):
+    def __init__(self, error):
+        self.error = error
+    def __str__(self):
+        return str(self.error)
 
 
 register_classes = []
 
 
+def main_control_update(self, context):
+    bpy.ops.batch_assign.main_control_update()
+    
+
 @append(register_classes)
-@model("batch_assign_main_errors")
-class BatchAssign_MainErrors(bpy.types.PropertyGroup):
-    unexpected_error : StringProperty(
-        description = "Unexpected Error",
+class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
+    erna : StringProperty(
+        name = "ERNA",
+        description = "ERNA Data Path",
         default = "",
+        update = main_control_update,
     )
 
-    selection_error : StringProperty(
-        description = "Selection Error",
+    enable_collection_preview : BoolProperty(
+        description = "Enable Collection Preview",
+        default = True,
+    )
+
+    enable_accessable_property : BoolProperty(
+        description = "Enable Accessable Property",
+        default = False,
+    )
+
+    unexpected_error : StringProperty(
+        description = "Unexpected Error",
         default = "",
     )
 
@@ -118,39 +110,24 @@ class BatchAssign_MainErrors(bpy.types.PropertyGroup):
         default = "",
     )
 
-    expr_error : StringProperty(
-        description = "Assign Expression Error",
-        default = "",
-    )
-
-    expr_error_indicator : StringProperty(
-        description = "Assign Expression Error Indicator",
-        default = "",
-    )
-
     collection_error : StringProperty(
         description = "Collection Error",
         default = "",
     )
 
 
-def main_control_update(self, context):
-    bpy.ops.batch_assign.main_control_update()
-
-
 @append(register_classes)
 @model("batch_assign_main_model")
 class BatchAssign_MainModel(bpy.types.PropertyGroup):
-    erna : StringProperty(
-        name = "ERNA",
-        description = "Extended RNA Data Path",
-        default = "",
+    erna_count : IntProperty(
+        name = "ERNA Count",
+        description = "ERNA Count",
+        default = 2,
+        min = 1,
+        max = 16,
         update = main_control_update,
     )
 
-    expr : StringProperty(
-        name = "EXPR",
-        description = "Python Assign Value Expression",
-        default = "",
-        update = main_control_update,
+    ernas : CollectionProperty(
+        type = BatchAssign_MainERNAModel
     )
