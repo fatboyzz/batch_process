@@ -11,24 +11,24 @@ register_classes = []
 class PresetError(Exception): pass
 
 class PresetErrorFileNotExist(PresetError):
-    def __init__(file):
+    def __init__(self, file):
         self.file = file
-    def __str__():
+    def __str__(self):
         return "Preset File {0} Not Exist".format(self.file)
 
 class PresetErrorEmpty(PresetError):
-    def __str__(): return "Preset Error Empty"
+    def __str__(self): return "Preset Error Empty"
 
 class PresetErrorLine(PresetError):
     def __init__(self, line): 
         self.line = line
-    def __str__(): 
+    def __str__(self): 
         return "Preset Error At Line {0}".format(self.line)
 
 class PresetErrorKeyAlreadyExist(PresetErrorLine):
     def __init__(self, key):
         self.key = key
-    def __str__():
+    def __str__(self):
         return "Preset Key {0} Already Exist".format(self.key)
 
 
