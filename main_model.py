@@ -9,6 +9,7 @@ from bpy.props import (
 )
 
 from .utils import *
+from .settings_model import *
 
 
 class ERNAError(Exception): pass
@@ -72,8 +73,10 @@ class CollectionErrorTransform(CollectionError):
 register_classes = []
 
 
-def main_control_update(self, context):
-    bpy.ops.batch_assign.main_control_update()
+def main_model_update(self, context):
+    settings = BatchAssign_SettingsModel.get()
+    if settings.enable_update_when_erna_changed:
+        bpy.ops.batch_assign.main_control_update()
     
 
 @append(register_classes)
@@ -82,7 +85,7 @@ class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
         name = "ERNA",
         description = "ERNA Data Path",
         default = "",
-        update = main_control_update,
+        update = main_model_update,
     )
 
     enable_collection_preview : BoolProperty(
@@ -125,7 +128,7 @@ class BatchAssign_MainModel(bpy.types.PropertyGroup):
         default = 2,
         min = 1,
         max = 16,
-        update = main_control_update,
+        update = main_model_update,
     )
 
     ernas : CollectionProperty(

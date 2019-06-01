@@ -94,7 +94,7 @@ class ERNAParser:
 
     def next(self):
         token = self.t_token
-        self.t_token = self.t_sequence.__next__()
+        self.t_token = next(self.t_sequence)
         return token
 
     def is_token(self, t_type):
@@ -302,20 +302,27 @@ class Collection:
     def transform(self, erna_ast):
         try:
             for op, value in erna_ast:
-                if op == ERNA.op_prop:
+                if op == ERNAParser.op_prop:
                     self.transform_op_prop(value)
-                elif op == ERNA.op_flatten:
+
+                elif op == ERNAParser.op_flatten:
                     self.transform_op_flatten(value)
-                elif op == ERNA.op_sort:
+
+                elif op == ERNAParser.op_sort:
                     self.transform_op_sort(value)
-                elif op == ERNA.op_filter:
+
+                elif op == ERNAParser.op_filter:
                     self.transform_op_filter(value)
-                elif op == ERNA.op_take:
+
+                elif op == ERNAParser.op_take:
                     self.transform_op_take(value)
-                elif op == ERNA.op_var:
+
+                elif op == ERNAParser.op_var:
                     self.transform_op_var(value)
-                elif op == ERNA.op_assign:
+
+                elif op == ERNAParser.op_assign:
                     self.transform_op_assign(value)
+                    
                 else:
                     raise CollectionErrorOperation()
 

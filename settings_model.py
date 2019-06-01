@@ -15,8 +15,8 @@ class BatchAssign_SettingsModel(bpy.types.PropertyGroup):
         default = False,
     )
 
-    enable_erna_syntax_help : BoolProperty(
-        name = "Enable Extended RNA Syntax Help",
+    enable_update_when_erna_changed : BoolProperty(
+        name = "Enable Update When ERNA Changed",
         default = True,
     )
 
