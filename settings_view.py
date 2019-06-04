@@ -4,7 +4,7 @@ from .settings_model import *
 
 register_classes = []
 
-@append(register_classes)
+@register_class
 class BatchAssign_PT_Settings(bpy.types.Panel):
     bl_idname = "BatchAssign_PT_Settings"
     bl_label = "Batch Assign Settings"

@@ -2,38 +2,28 @@ import sys
 import traceback
 import bpy
 
-def register_module(mod):
-    if not hasattr(mod, "register_classes"): return
 
-    for cls in mod.register_classes:
-        if issubclass(cls, bpy.types.bpy_struct):
-            bpy.utils.register_class(cls)
-
-        if hasattr(cls, "register_module"):
-            cls.register_module()
+register_classes = []
 
 
-def unregister_module(mod):
-    if not hasattr(mod, "register_classes"): return
+def register():
+    for cls in register_classes:
+        bpy.utils.register_class(cls)
 
-    for cls in reversed(mod.register_classes):
 
-        if hasattr(cls, "unregister_module"):
-            cls.unregister_module()
-
-        if issubclass(cls, bpy.types.bpy_struct):
-            bpy.utils.unregister_class(cls)
+def unregister():
+    for cls in reversed(register_classes):
+        bpy.utils.unregister_class(cls)
         
 
-def append(seq):
-    def decorator(cls):
-        seq.append(cls)
-        return cls
-
-    return decorator
+def register_class(cls):
+    """Decorator for blender register class"""
+    register_classes.append(cls)
+    return cls
 
 
 def singleton(cls):
+    """Decorator for singleton class"""
     cls.__singleton__ = None
 
     def get():
@@ -46,20 +36,21 @@ def singleton(cls):
 
 
 def model(prop):
+    """Decorator for blender scene property class"""
     def decorator(cls):
 
-        def register_module():
+        def register():
             S, P = bpy.types.Scene, bpy.props.PointerProperty
             setattr(S, prop, P(type=cls))
 
-        def unregister_module():
+        def unregister():
             delattr(bpy.types.Scene, prop)
             
         def get():
             return getattr(bpy.context.scene, prop)
         
-        cls.register_module = register_module
-        cls.unregister_module = unregister_module
+        cls.register = register
+        cls.unregister = unregister
         cls.get = get
         return cls
 

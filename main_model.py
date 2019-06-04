@@ -11,7 +11,6 @@ from bpy.props import (
 from .utils import *
 from .settings_model import *
 
-
 class ERNAError(Exception): pass
 
 class ERNAErrorEmpty(ERNAError): 
@@ -22,7 +21,7 @@ class ERNAErrorIndex(ERNAError):
         self.index = index
         self.message = message
     def __str__(self):
-        return "{0} : {1}".format(self.index, self.message)
+        return "Pos {0} : {1}".format(self.index, self.message)
 
 
 class CollectionError(Exception): pass
@@ -30,23 +29,21 @@ class CollectionError(Exception): pass
 class CollectionErrorEmpty(CollectionError):
     def __str__(self): return "Collection Empty"
 
+class CollectionErrorPrevCollection(CollectionError):
+    def __str__(self): return "Collection Error In Previous Collection"
+
 class CollectionErrorOperation(CollectionError):
     def __str__(self): return "Collection Unknown Operation"
 
-class CollectionErrorNoPropertyAccessAtLast(CollectionError):
-    def __str__(self): return "No Property Access At Last"
+class CollectionErrorEval(CollectionError):
+    def __init__(self, error): self.error = error
+    def __str__(self): return str(self.error)
 
 class CollectionErrorProperty(CollectionError):
     def __init__(self, prop):
         self.prop = prop
     def __str__(self): 
         return "Unknown Property {0}".format(self.prop)
-
-class CollectionErrorSyntax(CollectionError):
-    def __init__(self, expr):
-        self.expr = expr
-    def __str__(self):
-        return "{0} : {1}".format(self.index, self.message)
 
 class CollectionErrorFlatten(CollectionError):
     def __init__(self, prop):
@@ -63,15 +60,6 @@ class CollectionErrorAssignType(CollectionError):
             self.expect.__name__, self.actual.__name__
         )
 
-class CollectionErrorTransform(CollectionError):
-    def __init__(self, error):
-        self.error = error
-    def __str__(self):
-        return str(self.error)
-
-
-register_classes = []
-
 
 def main_model_update(self, context):
     settings = BatchAssign_SettingsModel.get()
@@ -79,7 +67,7 @@ def main_model_update(self, context):
         bpy.ops.batch_assign.main_control_update()
     
 
-@append(register_classes)
+@register_class
 class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
     erna : StringProperty(
         name = "ERNA",
@@ -119,7 +107,7 @@ class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
     )
 
 
-@append(register_classes)
+@register_class
 @model("batch_assign_main_model")
 class BatchAssign_MainModel(bpy.types.PropertyGroup):
     erna_count : IntProperty(

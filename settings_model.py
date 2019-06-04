@@ -7,7 +7,7 @@ from .utils import *
 
 register_classes = []
 
-@append(register_classes)
+@register_class
 @model("batch_assign_settings_model")
 class BatchAssign_SettingsModel(bpy.types.PropertyGroup):
     enable_debug_information : BoolProperty(

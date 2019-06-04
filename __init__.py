@@ -30,13 +30,10 @@ from . import settings_view
 from . import preset_view
 from . import main_view
 
-
-reload_modules = (
+modules = (
     utils,
     globals_model,
-)
 
-register_modules = (
     settings_model,
     preset_model,
     main_model,
@@ -49,14 +46,17 @@ register_modules = (
     main_view,
 )
 
-def register():
-    for mod in reload_modules:
-        importlib.reload(mod)
+reload = False
 
-    for mod in register_modules:
-        importlib.reload(mod)
-        utils.register_module(mod)
+def register():
+    if reload:
+        for mod in modules:
+            importlib.reload(mod)
+
+    utils.register()
 
 def unregister():
-    for mod in reversed(register_modules):
-        utils.unregister_module(mod)
+    utils.unregister()
+
+    global reload
+    reload = True

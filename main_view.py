@@ -2,9 +2,7 @@ import bpy
 from .utils import *
 from .main_control import *
 
-register_classes = []
-
-@append(register_classes)
+@register_class
 class BatchAssign_OP_MainControlUpdate(bpy.types.Operator):
     bl_idname = "batch_assign.main_control_update"
     bl_label = "Update Collection"
@@ -14,7 +12,7 @@ class BatchAssign_OP_MainControlUpdate(bpy.types.Operator):
         BatchAssign_MainControl.get().update()
         return {'FINISHED'}
 
-@append(register_classes)
+@register_class
 class BatchAssign_OP_MainControlBatchAssign(bpy.types.Operator):
     bl_idname = "batch_assign.main_control_batch_assign"
     bl_label = "Update Collection"
@@ -24,7 +22,7 @@ class BatchAssign_OP_MainControlBatchAssign(bpy.types.Operator):
         BatchAssign_MainControl.get().batch_assign()
         return {'FINISHED'}
     
-@append(register_classes)
+@register_class
 class BatchAssign_PT_MainPanel(bpy.types.Panel):
     bl_idname = "BatchAssign_PT_MainPanel"
     bl_label = "Batch Assign Main"
@@ -118,7 +116,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         )
 
         if len(model.erna_error_indicator) > 0:
-            layout.prop(
+            layout_column.prop(
                 data = model,
                 property = "erna_error_indicator",
                 text = "",

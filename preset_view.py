@@ -4,10 +4,7 @@ from .preset_model import *
 from .preset_control import *
 
 
-register_classes = []
-
-
-@append(register_classes)
+@register_class
 class BatchAssign_PresetControlLoadFile(bpy.types.Operator):
     bl_idname = "batch_assign.preset_control_load_file"
     bl_label = "Preset Control Load File"
@@ -22,7 +19,7 @@ class BatchAssign_PresetControlLoadFile(bpy.types.Operator):
         return {"FINISHED"}
 
 
-@append(register_classes)
+@register_class
 class BatchAssign_MT_PresetFileMenu(bpy.types.Menu):
     bl_idname = "BatchAssign_MT_PresetLoadMenu"
     bl_label = "Select Preset File"
@@ -38,7 +35,7 @@ class BatchAssign_MT_PresetFileMenu(bpy.types.Menu):
             ).file = file
 
 
-@append(register_classes)
+@register_class
 class BatchAssign_PresetControlLoadKey(bpy.types.Operator):
     bl_idname = "batch_assign.preset_control_load_key"
     bl_label = "Preset Control Load Key"
@@ -53,7 +50,7 @@ class BatchAssign_PresetControlLoadKey(bpy.types.Operator):
         return {"FINISHED"}
 
 
-@append(register_classes)
+@register_class
 class BatchAssign_MT_PresetKeyMenu(bpy.types.Menu):
     bl_idname = "BatchAssign_MT_PresetKeyMenu"
     bl_label = "Select Preset Key"
@@ -68,7 +65,7 @@ class BatchAssign_MT_PresetKeyMenu(bpy.types.Menu):
             ).key = key
 
 
-@append(register_classes)
+@register_class
 class BatchAssign_PT_PresetPanel(bpy.types.Panel):
     bl_idname = "BatchAssign_PT_PresetPanel"
     bl_label = "Batch Assign Preset"

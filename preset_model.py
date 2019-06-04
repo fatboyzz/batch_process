@@ -32,7 +32,7 @@ class PresetErrorKeyAlreadyExist(PresetErrorLine):
         return "Preset Key {0} Already Exist".format(self.key)
 
 
-@append(register_classes)
+@register_class
 @model("batch_assign_preset_model")
 class BatchAssign_PresetModel(bpy.types.PropertyGroup):
     preset_file : StringProperty(

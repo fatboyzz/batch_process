@@ -121,18 +121,7 @@ class ERNAParser:
             )
 
     def parse(self):
-        """
-            Return instance of ERNAAst
-            erna -> op* t_stop
-            op -> op_prop | op_flatten | op_sort | op_filter | op_take | op_var
-            op_prop -> ["."] t_name ("." op_prop)*
-            op_flatten -> "*"
-            op_sort -> "@" t_expr
-            op_filter -> "|" t_expr
-            op_take -> "[" t_number [ ":" t_number [ ":" t_number ]] "]"
-            op_var -> "%" t_name
-            op_assign -> "=" t_name t_expr
-        """
+        """Return instance of ERNAAst"""
         self.match_token(ERNALexer.t_start)
         return self.parse_erna()
 
@@ -187,9 +176,14 @@ class ERNAParser:
         return ERNAAst(self.op_prop, props)
 
     def parse_op_flatten(self):
-        """Return ERNAAst(op_flatten, None)"""
-        self.match_symbol("*")
-        return ERNAAst(self.op_flatten, None)
+        """Return ERNAAst(op_flatten, (expr_index, expr))"""
+        index = self.match_symbol("*").t_index
+        expr = "$$"
+
+        if self.is_token(ERNALexer.t_expr):
+            _, index, expr = self.match_token(ERNALexer.t_expr)
+
+        return ERNAAst(self.op_flatten, (index + 1, expr[1:-1]))
 
     def parse_op_sort(self):
         """Return ERNAAst(op_sort, (expr_index, expr))"""
@@ -223,10 +217,12 @@ class ERNAParser:
         return ERNAAst(self.op_take, (start, stop, step))
 
     def parse_op_var(self):
-        """Return ERNAAst(op_filter, name)"""
+        """Return ERNAAst(op_filter, (expr_index, expr))"""
+
         self.match_symbol("%")
-        name = self.match_token(ERNALexer.t_name).t_string
-        return ERNAAst(self.op_var, name)
+        _, index, expr = self.match_token(ERNALexer.t_expr)
+
+        return ERNAAst(self.op_var, (index + 1, expr[1:-1]))
 
     def parse_op_assign(self):
         """Return ERNAAst(op_filter, (name, expr_index, expr))"""
@@ -255,16 +251,16 @@ class Context:
                 raise CollectionErrorProperty(prop)
         return Context(data, self.ls)
 
-    def extend_ls(self, ls_more):
-        return Context(self.data, ChainMap(ls_more, self.ls))
+    def extend_ls(self, ls_ext):
+        return Context(self.data, ChainMap(ls_ext, self.ls))
 
     def eval(self, expr_index, expr):
         try:
             data = eval(expr, Expression_Globals, self.ls)
         except SyntaxError as error:
-            raise EXPRErrorIndex(expr_index + error.offset, error.msg)
+            raise ERNAErrorIndex(expr_index + error.offset, error.msg)
         except Exception as error:
-            raise CollectionErrorException(error)
+            raise CollectionErrorEval(error)
         return Context(data, self.ls)
 
 
@@ -300,34 +296,30 @@ class Collection:
         return props
 
     def transform(self, erna_ast):
-        try:
-            for op, value in erna_ast:
-                if op == ERNAParser.op_prop:
-                    self.transform_op_prop(value)
+        for op, value in erna_ast:
+            if op == ERNAParser.op_prop:
+                self.transform_op_prop(value)
 
-                elif op == ERNAParser.op_flatten:
-                    self.transform_op_flatten(value)
+            elif op == ERNAParser.op_flatten:
+                self.transform_op_flatten(value)
 
-                elif op == ERNAParser.op_sort:
-                    self.transform_op_sort(value)
+            elif op == ERNAParser.op_sort:
+                self.transform_op_sort(value)
 
-                elif op == ERNAParser.op_filter:
-                    self.transform_op_filter(value)
+            elif op == ERNAParser.op_filter:
+                self.transform_op_filter(value)
 
-                elif op == ERNAParser.op_take:
-                    self.transform_op_take(value)
+            elif op == ERNAParser.op_take:
+                self.transform_op_take(value)
 
-                elif op == ERNAParser.op_var:
-                    self.transform_op_var(value)
+            elif op == ERNAParser.op_var:
+                self.transform_op_var(value)
 
-                elif op == ERNAParser.op_assign:
-                    self.transform_op_assign(value)
-                    
-                else:
-                    raise CollectionErrorOperation()
-
-        except Exception as error:
-            raise CollectionErrorTransform(error)
+            elif op == ERNAParser.op_assign:
+                self.transform_op_assign(value)
+                
+            else:
+                raise CollectionErrorOperation()
 
     def transform_op_prop(self, props):
         self.contexts = [
@@ -335,16 +327,38 @@ class Collection:
             for context in self.contexts
         ]
 
-    def transform_op_flatten(self, _):
-        contexts_new = []
-        for context in self.contexts:
-            items, ls = context.data, context.ls
+    def transform_op_flatten(self, value):
+        expr_index, expr = value
 
-            if not hasattr(items, "__iter__"):
+        contexts_new = []
+        length = len(self.contexts)
+
+        for index, context in enumerate(self.contexts):
+            data, ls = context.data, context.ls
+
+            if not hasattr(data, "__iter__"):
                 raise CollectionErrorFlatten()
 
-            for item in items:
-                contexts_new.append(Context(item, ls))
+            length_data = len(data)
+
+            if len(expr) == 0:
+                for item in data:
+                    contexts_new.append(Context(item, ls))
+
+            else:
+                for index_item, item in enumerate(data):
+                    ls_ext = {
+                        "length" : length,
+                        "index" : index,
+                        "data" : data,
+                        "length_data" : length_data,
+                        "index_item" : index_item,
+                        "item" : item,
+                    }
+                    context_item = Context(item, ls) 
+                    context_ext = context_item.extend_ls(ls_ext)
+                    ls_new = context_ext.eval(expr_index, expr).data
+                    contexts_new.append(context_item.extend_ls(ls_new))
 
         self.contexts = contexts_new
 
@@ -353,8 +367,8 @@ class Collection:
         length = len(self.contexts)
 
         def sort_key(context):
-            ls_new = {"data": context.data, "length": length}
-            return context.extend_ls(ls_new).eval(expr_index, expr).data
+            ls_ext = {"data": context.data, "length": length}
+            return context.extend_ls(ls_ext).eval(expr_index, expr).data
 
         self.contexts.sort(key=sort_key)
 
@@ -364,12 +378,12 @@ class Collection:
         length = len(self.contexts)
 
         for index, context in enumerate(self.contexts):
-            ls_new = {
-                "data": context.data,
-                "index": index,
-                "length": length,
+            ls_ext = {
+                "data" : context.data,
+                "index" : index,
+                "length" : length,
             }
-            if context.extend_ls(ls_new).eval(expr_index, expr).data:
+            if context.extend_ls(ls_ext).eval(expr_index, expr).data:
                 contexts_new.append(context)
 
         if len(contexts_new) == 0:
@@ -384,11 +398,22 @@ class Collection:
         except Exception as error:
             raise CollectionErrorException(error)
 
-    def transform_op_var(self, name):
-        self.contexts = [
-            context.extend_ls({name: context.data})
-            for context in self.contexts
-        ]
+    def transform_op_var(self, value):
+        expr_index, expr = value
+        contexts_new = []
+        length = len(self.contexts)
+
+        for index, context in enumerate(self.contexts):
+            ls_ext = {
+                "data" : context.data,
+                "index" : index,
+                "length" : length,
+            }
+            context_ext = context.extend_ls(ls_ext)
+            ls_new = context_ext.eval(expr_index, expr).data
+            contexts_new.append(context.extend_ls(ls_new))
+
+        self.contexts = contexts_new
 
     def transform_op_assign(self, values):
         name, expr_index, expr = values
@@ -406,8 +431,8 @@ class Collection:
             prop_data = prop_context.data
             prop_type = type(prop_data)
 
-            ls_new = {"data": prop_data, "index": index, "length": length}
-            assign_value = prop_context.extend_ls(ls_new).eval(expr_index, expr).data
+            ls_ext = {"data": prop_data, "index": index, "length": length}
+            assign_value = prop_context.extend_ls(ls_ext).eval(expr_index, expr).data
 
             expect, actual = prop_type, type(assign_value)
             if expect != actual:
@@ -429,12 +454,6 @@ class Collection:
 class BatchAssign_MainControl:
     def __init__(self):
         self.collections = None
-
-    def get_ernas(self) -> [str]:
-        pass
-
-    def set_ernas(self, ss : [str]):
-        pass
 
     def update(self):
         self.update_model()
@@ -459,9 +478,10 @@ class BatchAssign_MainControl:
 
     def update_collections(self):
         model = BatchAssign_MainModel.get()
-        self.collections = []
+        erna_count = len(model.ernas)
+        self.collections = [None] * erna_count
 
-        for index in range(len(model.ernas)):
+        for index in range(erna_count):
             self.index = index
             self.update_collection()
 
@@ -490,11 +510,14 @@ class BatchAssign_MainControl:
                 ])
             else:
                 prev_collection = self.collections[self.index - 1]
+                
+            if prev_collection is None:
+                raise CollectionErrorPrevCollection()
 
             collection = Collection(prev_collection.contexts)
             collection.transform(erna_ast)
 
-            self.collections.append(collection)
+            self.collections[self.index] = collection
 
         except Exception as error:
             self.handle_errors(error)
@@ -518,4 +541,3 @@ class BatchAssign_MainControl:
         else:
             model.unexpected_error = str(error)
 
-    
