@@ -1,0 +1,6 @@
+# Renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
+Rename Sort By X
+!$bpy.context.selected_objects$
+@$data.location.x$
+=name$"obj_{0:03}".format(index)$
+

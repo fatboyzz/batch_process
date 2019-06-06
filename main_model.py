@@ -45,11 +45,11 @@ class CollectionErrorProperty(CollectionError):
     def __str__(self): 
         return "Unknown Property {0}".format(self.prop)
 
-class CollectionErrorFlatten(CollectionError):
-    def __init__(self, prop):
-        self.prop = prop
+class CollectionErrorNoIter(CollectionError):
+    def __init__(self, data):
+        self.data = data
     def __str__(self):
-        return "Property {0} is not iterable".format(self.prop)
+        return "Type {0} is not iterable".format(type(self.data))
 
 class CollectionErrorAssignType(CollectionError):
     def __init__(self, expect, actual):
@@ -65,7 +65,21 @@ def main_model_update(self, context):
     settings = BatchAssign_SettingsModel.get()
     if settings.enable_update_when_erna_changed:
         bpy.ops.batch_assign.main_control_update()
-    
+
+
+class MainModelChangeContext:
+    def __enter__(self):
+        settings = BatchAssign_SettingsModel.get()
+        self.old = settings.enable_update_when_erna_changed
+        settings.enable_update_when_erna_changed = False
+        model = BatchAssign_MainModel.get()
+        return model
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        settings = BatchAssign_SettingsModel.get()
+        settings.enable_update_when_erna_changed = self.old
+        main_model_update(None, None)
+
 
 @register_class
 class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
@@ -78,6 +92,11 @@ class BatchAssign_MainERNAModel(bpy.types.PropertyGroup):
 
     enable_collection_preview : BoolProperty(
         description = "Enable Collection Preview",
+        default = True,
+    )
+
+    enable_assignment_preview: BoolProperty(
+        description = "Enable Assignment Preview",
         default = True,
     )
 

@@ -10,53 +10,59 @@ register_classes = []
 class Preset:
     def __init__(self):
         self.datas = OrderedDict()
-        self.line_sequence = None
-        self.line = None
 
-    def next(self):
-        text_line = next(self.line_sequence, None)
-        self.line = text_line.body if text_line is not None else None
-
-    def parse_file(self, file):
-        """
-            <empty line>*
-            <key 0>
-            <erna 0>
-            <erna 1>
-            <empty line>+
-            <key 1>
-            <erna 0>
-            <erna 1>
-            <empty line>+
-        """
+    def file_lines(self, file):
         text = bpy.data.texts[file]
         if len(text.lines) == 0: raise PresetErrorEmpty()
+        for line in text.lines:
+            body = line.body
+            index = body.find("#")
+            yield body[0:None if index == -1 else index]
 
+    s_count = counter(1)
+    s_empty = s_count()
+    s_key = s_count()
+    s_erna = s_count()
+
+    def parse_lines(self, lines):
+        state = self.s_empty
+        line, key, ernas = None, None, None
+
+        while True:
+            if state == self.s_empty:
+                line = next(lines, None)
+                if line == None: 
+                    return
+                elif line == "":
+                    state = self.s_empty
+                else:
+                    key = line
+                    state = self.s_key
+
+            elif state == self.s_key:
+                line = next(lines, None)
+                if line == None: 
+                    raise PresetErrorERNAEmpty(key)
+                elif line == "":
+                    raise PresetErrorERNAEmpty(key)
+                else:
+                    ernas = [line]
+                    state = self.s_erna
+
+            elif state == self.s_erna:
+                line = next(lines, None)
+                if line == None: 
+                    self.datas[key] = ernas
+                    return
+                elif line == "":
+                    self.datas[key] = ernas
+                    state = self.s_empty
+                else:
+                    ernas.append(line)
+
+    def parse_file(self, file):
         self.datas = OrderedDict()
-        self.line_sequence = text.lines.__iter__()
-        self.next()
-        self.parse_lines()
-
-    def parse_lines(self):
-        if self.line == None: 
-            return
-
-        elif self.line == "": 
-            while self.line == "":
-                self.next()
-
-        else:
-            key = self.line
-            self.next()
-            if key in self.datas:
-                raise PresetErrorKeyAlreadyExist(key)
-
-            ernas = []
-            while self.line != "":
-                ernas.append(self.line)
-                self.next()
-
-            self.datas[key] = ernas
+        self.parse_lines(self.file_lines(file))
 
 
 @singleton
@@ -67,8 +73,13 @@ class BatchAssign_PresetControl:
         self.preset_key_loaded = None
 
     def load_file(self, file):
+        model = BatchAssign_PresetModel.get()
+        model.preset_error = ""
+        model.unexpected_error = ""
+        
         try:
             self.preset_file_loaded = None
+            self.preset_key_loaded = None
             self.preset = Preset()
             self.preset.parse_file(file)
             self.preset_file_loaded = file
@@ -88,22 +99,25 @@ class BatchAssign_PresetControl:
             
 
     def load_key(self, key):
-        self.preset_key_loaded = None
+        with MainModelERNAChangeContext():
+            self.preset_key_loaded = None
+            model = BatchAssign_MainModel.get()
 
-        settings = BatchAssign_SettingsModel.get()
-        old_setting = settings.enable_update_when_erna_changed
-        settings.enable_update_when_erna_changed = False
+            ernas = self.preset.datas[key]
+            model.erna_count = len(ernas)
 
-        model = BatchAssign_MainModel.get()
+            model.ernas.clear()
+            for erna in ernas:
+                model.ernas.add().erna = erna
 
-        ernas = self.preset.datas[key]
-        model.erna_count = len(ernas)
+            self.preset_key_loaded = key
 
-        model.ernas.clear()
-        for erna in ernas:
-            model.ernas.add().erna = erna
+    def write_ernas(self, file):
+        texts = bpy.data.texts 
+        text_index = texts.find(file)
+        if text_index == -1: return
 
-        settings.enable_update_when_erna_changed = old_setting
-        self.preset_key_loaded = key
-
-        main_model_update(self, None)
+        text = texts[text_index]
+        text.write(self.preset_key_loaded + "\n")
+        for model in BatchAssign_MainModel.get().ernas:
+            text.write(model.erna + "\n")

@@ -5,47 +5,55 @@ Sometimes we want to set multiple properties with some simple rules.
 
 These rules including:
 
-- Renaming selected objects into "obj_0", "obj_1", ... sorted by their x position.
+- Renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
 - Renaming all bones of an armature from "bone_left" to "bone.L" and same changes to corresponding vertex groups.
 
 Batch Assign add-on helps you get these jobs done with one string instead of
 
-- Writing a 20 line python script with multiple for loops and take you some time to debug.
+- Writing a 20 line python script with multiple for loops and takes you some time to debug.
 - Working with complecated renaming ui which may or may not reach your specific needs.
 - Doing them one by one.
 
 ## Warning
-- This add-on is for blender 2.8 only.
+- Batch Assign add-on is for blender 2.8 only.
 - To use this add-on effectively requires basic python programming skill.
 - You should be comfortable with python documentation and blender python api documentation.
-- Everything under development.
+- Beta Version
 
 ## How it works
 The one string you input is called a ERNA(Extended RNA Data Path).
 Just like RNA in blender is used to get one property of one object.
 ERNA is used to get multiple properties of multiple objects.
-We call these bunch of objects a *Collection*. 
-Each one of these objects itself is called *Data* of *Collection*.
-ERNA is the rule of Transforming from one *Collection* into another *Collection*.
-Here is the full ERNA for renaming selected objects into "obj_0", "obj_1", ... sorted by their x position.
+We call these bunch of objects a *collection*. 
+Each one of these objects itself is called *data* of *collection*.
+ERNA is the rule of Transforming from one *collection* into another *collection*.
+Here is the full ERNA for renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
 
 ```
-bpy.context.selected_objects*@$data.location.x$=name$"obj_"+str(index)$
+!$bpy.context.selected_objects$@$data.location.x$=name$"obj_{0:03}".format(index)$
 ```
 
-This long ERNA can be seperated by parts and each part is indicating a *Collection* Transform.
+This long ERNA can be seperated by parts and each part is indicating a *collection* Transform.
 Each ERNA Part is just a shorter ERNA.
-The following table show the steps of how the add-on interpret this ERNA and transform the *Collection*.
+The following steps show how the add-on interpret this ERNA
 
-| *Collection*                    | ERNA                       | Transform | Description                                                     |
-|---------------------------------|----------------------------|-----------|-----------------------------------------------------------------|
-| `[<initial>]`                   |                            |           | initial is a special *Data* with one property "bpy"             |
-| `[<initial>]`                   | `bpy`                      | Property  | access "bpy" property of each *Data* as the result *Collection* |
-| `[<module 'bpy'>]`              | `.context`                 | Property  | access "context" property                                       |
-| `[<bpy_struct, Context>]`       | `.selected_objects`        | Property  | access "selected_objects" property                              |
-| `[[<obj_c>, <obj_b>, <obj_a>]]` | `*`                        | Flatten   | for each *Data* put all *Data* element in result *Collection*   |
-| `[<obj_c>, <obj_b>, <obj_a>]`   | `@$data.location.x$`       | Sort      | sort *Data* by accessing property location.x as sort key        |
-| `[<obj_a>, <obj_b>, <obj_c>]`   | `=name$"obj_"+str(index)$` | Assign    | assign "name" property of each *Data* with python expression    |
+1. `!$bpy.context.selected_objects$` **Initial Operation** `[<obj_c>, <obj_b>, <obj_a>]`
+
+    `!$<expr>$` is the syntax of Initial Operation.
+    It simply ignore the input *collection* and use the value of `<expr>` as output Collection.
+    `<expr>` is any python expresion that return an iterable object.
+
+2. `@$data.location.x$` **Sort Operation** `[<obj_a>, <obj_b>, <obj_c>]`
+
+    `@$<expr>$` is the syntax of Sort Operation.
+    Sort all *data* in *collection* by using `<expr>` to calculate the sort key.
+
+3. `=name$"obj_{0:03}".format(index)$` **Assign Operation** `[<obj_a>, <obj_b>, <obj_c>]`
+
+    `=<name>$<expr>$` is the syntax of Assign Operation.
+    Assign "name" property of each *data* with value of `<expr>`.
+    Assign Operation will not change *collection* but store the assign information.
+    The actual assignment is done later when user click assign button.
 
 ## Installation
 1. Download the Batch Assign add-on source code somewhere.
@@ -54,10 +62,9 @@ The following table show the steps of how the add-on interpret this ERNA and tra
 4. Search *Batch Assign* and enable it.
 
 ## User Interface
-After Batch Assign add-on enabled, three panels will appear at "misc" panel of sidebar (press "N" to show the sidebar).
+After Batch Assign add-on enabled, three panels will appear at "misc" panel of the sidebar (press "N" to show the sidebar).
 
 ![panels_title.png](image/panels_title.png)
-
 
 ### Batch Assign Main Panel
 
@@ -72,10 +79,10 @@ After Batch Assign add-on enabled, three panels will appear at "misc" panel of s
 <name>
 <name>.<name>.<name> ...
 ```
-Access property of each *Data* as result *Collection*.
+Access property of each *data* as result *collection*.
 `<name>` is a valid python identifier.
 
-| *Collection*               | ERNA    | *Collection* Transformed                     |
+| *collection*               | ERNA    | *collection* Transformed                     |
 |----------------------------|---------|----------------------------------------------|
 | `[data_0, data_1, data_2]` | `name`  | `[data_0.name, data_1.name, data_2.name]`    |
 | `[data_0, data_1, data_2]` | `a.b.c` | `[data_0.a.b.c, data_1.a.b.c, data_2.a.b.c]` |
@@ -85,9 +92,9 @@ Access property of each *Data* as result *Collection*.
 *
 *$<expr>$
 ```
-Access each *Item* inside *Data* as result *Collection*, *Data* must have `__iter__` method.
+Access each *Item* inside *data* as result *collection*, *data* must have `__iter__` method.
 
-| *Collection*                                   | ERNA | *Collection* Transformed                   |
+| *collection*                                   | ERNA | *collection* Transformed                   |
 |------------------------------------------------|------|--------------------------------------------|
 | `[[item_0_0, item_0_1], [item_1_0, item_1_1]]` | `*`  | `[item_0_0, item_0_1, item_1_0, item_1_1]` |
 
@@ -96,17 +103,17 @@ If `<expr>` is provided, it is a valid python expression with following local va
 
 | Variable    | Value                        |
 |-------------|------------------------------|
-| length      | length of *Collection*       |
-| index       | index of *Data* start from 0 |
-| data        | value of *Data*              |
-| length_data | length of *Data*             |
+| length      | length of *collection*       |
+| index       | index of *data* start from 0 |
+| data        | value of *data*              |
+| length_data | length of *data*             |
 | index_item  | index of *Item* start from 0 |
 | item        | value of *Item*              |
 
 With these variables you have `collection[index][index_item] == item`
 The value of `<expr>` is a dict which is used to introduce new local variables to item.
 
-| *Collection*               | ERNA                             | *Collection* Transformed                   |
+| *collection*               | ERNA                             | *collection* Transformed                   |
 |----------------------------|----------------------------------|--------------------------------------------|
 | `[[item_0_0], [item_1_0]]` | `*${"i":index, "j":index_item}$` | `[item_0_0{i:0, j:0}, item_1_0{i:1, j:0}]` |
 
@@ -114,18 +121,18 @@ The value of `<expr>` is a dict which is used to introduce new local variables t
 ```
 @$<expr>$
 ```
-Stable sort *Collection* with the value of `<expr>` as key.
+Stable sort *collection* with the value of `<expr>` as key.
 
 `<expr>` is any valid python expression with following local variables
 
 | Variable | Value                  |
 |----------|------------------------|
-| data     | value of *Data*        |
-| length   | length of *Collection* |
+| data     | value of *data*        |
+| length   | length of *collection* |
 
 Suppose we have `data_0.name == "c" and data_1.name == "b" and data_2.name == "a"`
 
-| *Collection*               | ERNA           | *Collection* Transformed   |
+| *collection*               | ERNA           | *collection* Transformed   |
 |----------------------------|----------------|----------------------------|
 | `[data_0, data_1, data_2]` | `@$data.name$` | `[data_2, data_1, data_0]` |
 
@@ -133,21 +140,21 @@ Suppose we have `data_0.name == "c" and data_1.name == "b" and data_2.name == "a
 ```
 |$<expr>$
 ```
-Filter *Collection* with the value of `<expr>`.
+Filter *collection* with the value of `<expr>`.
 
 `<expr>` is any valid python expression with following local variables
 
 | Variable | Value                        |
 |----------|------------------------------|
-| data     | value of *Data*              |
-| index    | index of *Data* start from 0 |
-| length   | length of *Collection*       |
+| data     | value of *data*              |
+| index    | index of *data* start from 0 |
+| length   | length of *collection*       |
 
-The value of `<expr>` is a bool which test whether the *Data* exist in result *Collection*.
+The value of `<expr>` is a bool which test whether the *data* exist in result *collection*.
 
 Suppose we have `data_0.name == "a" and data_1.name == "b" and data_2.name == "c"`
 
-| *Collection*               | ERNA                  | *Collection* Transformed |
+| *collection*               | ERNA                  | *collection* Transformed |
 |----------------------------|-----------------------|--------------------------|
 | `[data_0, data_1, data_2]` | `|$data.name == "b"$` | `[data_1]`               |
 | `[data_0, data_1, data_2]` | `|$index % 2 == 0$`   | `[data_0, data_2]`       |
@@ -157,10 +164,10 @@ Suppose we have `data_0.name == "a" and data_1.name == "b" and data_2.name == "c
 [<start>:<stop>:<step>]
 ```
 
-Take *Data* in *Collection* with python slice similar syntax.
+Take *data* in *collection* with python slice similar syntax.
 `<start>`, `<stop>` and `<step>` are int numbers.
 
-| *Collection*                               | ERNA    | *Collection* Transformed   |
+| *collection*                               | ERNA    | *collection* Transformed   |
 |--------------------------------------------|---------|----------------------------|
 | `[data_0, data_1, data_2, data_3, data_4]` | `[2]`   | `[data_2]`                 |
 | `[data_0, data_1, data_2, data_3, data_4]` | `[2:4]` | `[data_2, data_3]`         |
@@ -170,19 +177,19 @@ Take *Data* in *Collection* with python slice similar syntax.
 ```
 %$<expr>$
 ```
-Introduce new local variables to *Data*.
+Introduce new local variables to *data*.
 `<expr>` is any valid python expression with following local variables
 
 | Variable | Value                        |
 |----------|------------------------------|
-| data     | value of *Data*              |
-| index    | index of *Data* start from 0 |
-| length   | length of *Collection*       |
+| data     | value of *data*              |
+| index    | index of *data* start from 0 |
+| length   | length of *collection*       |
 
-The return value of `<expr>` is a dict which is used to introduce new local variables to *Data*.
-This operation will not change *Collection*.
+The return value of `<expr>` is a dict which is used to introduce new local variables to *data*.
+This operation will not change *collection*.
 
-| *Collection*       | ERNA                         | *Collection* Transformed               |
+| *collection*       | ERNA                         | *collection* Transformed               |
 |--------------------|------------------------------|----------------------------------------|
 | `[data_0, data_1]` | `%${"i":index, "l":length}$` | `[data_0{i:0, l:2}, item_1{i:1, l:2}]` |
 
@@ -192,9 +199,9 @@ This operation will not change *Collection*.
 =<name>$<expr>$
 ```
 
-Declare an assignment that assign value of `<expr>` to *Data*'s `<name>` property.
+Declare an assignment that assign value of `<expr>` to *data*'s `<name>` property.
 Will do the actual assignment after user clicking the Assign button.
-This operation will not change *Collection*.
+This operation will not change *collection*.
 
 ### Global Variables
 All python expression `<expr>` may access global variables in following table.
@@ -209,12 +216,12 @@ you have to manually change `Expression_Globals` in source code file `globals_mo
 ### ERNA Grammar Specification
 ```
 erna -> op* t_stop
-op -> one of following op_???
+op -> one of op_???
 op_prop -> ["."] t_name ("." op_prop)*
-op_map -> "$" t_expr
-op_init -> "!" t_expr
+op_map -> "#" t_expr
+op_init -> "!" (t_expr | t_number)
 op_flatten -> "*" [ t_expr ]
-op_sort -> "@" t_expr
+op_sort -> "@" [ t_expr ]
 op_filter -> "|" t_expr
 op_take -> "[" t_number [ ":" t_number [ ":" t_number ]] "]"
 op_var -> "%" t_expr
@@ -225,34 +232,14 @@ op_delay -> "\" t_expr
 ## ERNA Examples
 File `EXAMPLES.txt` in source code listed all examples bellow as a preset file.
 
-### Object Select Examples : 
-
-```
-#[Initial] -> [bpy.types.Object]
-
-```
-
-
-### Renaming Examples
-
-
-### Miscellaneous Examples
-
 - Renaming objects selected into "obj_001", "obj_002", ... , "obj_100" sorted by their x position.
-
-
 - Renaming all bones of an armature from "bone_left" to "bone.L" and same changes to corresponding vertex groups.
-
-
-- Renaming all materials of selected objects into `"<obj_name>_M00"`, `"<obj_name>_M01"`, ... .
-```
-
-```
-
+- Renaming all materials of selected objects into `"<obj_name>_M00"`, `"<obj_name>_M01"`, 
+- Importing all "*.obj" files in folder obj.
 - Set "obj_color_00.tga", "obj_normal_00.tga", "obj_srma_00.tga", "obj_color_01.tga" ... into corresponding image node of obj's material slot.
 
 ## Preset File
-A preset file is just a plain text file to save multiple ERNA with keys.
+A preset file is just a plain text file which save multiple ERNA with keys.
 It is saved as text data so you may edit it with blender text editor or append it across blender files.
 The Batch Assign Preset Panel is used to load preset file and set ERNA to Batch Assign Main Panel.
 The preset file is loaded into an `OrderedList` thus the keys are sorted.

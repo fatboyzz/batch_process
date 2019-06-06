@@ -8,12 +8,7 @@ from .settings_model import *
 from .main_model import *
 
 
-register_classes = []
-
-
-ERNAToken = namedtuple("ERNAToken", [
-    "t_type", "t_index", "t_string",
-])
+ERNAToken = namedtuple("ERNAToken", [ "t_type", "t_index", "t_string" ])
 
 
 class ERNALexer:
@@ -27,7 +22,7 @@ class ERNALexer:
     t_expr = t_count()
 
     re_table = [
-        (t_symbol, re.compile(r"""[\.\*@|\[:\]\%=]""")),
+        (t_symbol, re.compile(r"""[\.#!*@|\[:\]%=\\]""")),
         (t_name, re.compile(r"""[A-Za-z_][A-Za-z_0-9]*""")),
         (t_number, re.compile(r"""[0-9-]+""")),
         (t_expr, re.compile(r"""\$[^\$]*\$""")),
@@ -67,10 +62,7 @@ class ERNALexer:
                 raise ERNAErrorIndex(self.s_index, "Unexpected Token")
 
 
-ERNAAst = namedtuple("ERNAAst", [
-    "op", "value"
-])
-
+ERNANode = namedtuple("ERNANode", ["op", "value"])
 
 class ERNAParser:
     """LL(1) parser of erna"""
@@ -80,12 +72,15 @@ class ERNAParser:
     erna = erna_count()
     op = erna_count()
     op_prop = erna_count()
+    op_map = erna_count()
+    op_init = erna_count()
     op_flatten = erna_count()
     op_sort = erna_count()
     op_filter = erna_count()
     op_take = erna_count()
     op_var = erna_count()
     op_assign = erna_count()
+    op_delay = erna_count()
 
     def __init__(self, lexer):
         self.t_sequence = lexer.tokens()
@@ -93,16 +88,16 @@ class ERNAParser:
         self.next()
 
     def next(self):
-        token = self.t_token
         self.t_token = next(self.t_sequence)
-        return token
 
     def is_token(self, t_type):
         return self.t_token.t_type == t_type
 
     def match_token(self, t_type):
         if self.is_token(t_type):
-            return self.next()
+            token = self.t_token
+            self.next()
+            return token
         else:
             raise ERNAErrorIndex(
                 self.t_token.t_index, "Unexpected Token"
@@ -114,14 +109,16 @@ class ERNAParser:
 
     def match_symbol(self, symbol):
         if self.is_symbol(symbol):
-            return self.next()
+            token = self.t_token
+            self.next()
+            return token
         else:
             raise ERNAErrorIndex(
                 self.t_token.t_index, "Expect Symbol {0}".format(symbol)
             )
 
     def parse(self):
-        """Return instance of ERNAAst"""
+        """Return instance of ERNANode"""
         self.match_token(ERNALexer.t_start)
         return self.parse_erna()
 
@@ -139,32 +136,31 @@ class ERNAParser:
         if self.is_token(ERNALexer.t_name):
             return self.parse_op_prop()
 
-        elif self.is_symbol("."):
-            return self.parse_op_prop()
-
-        elif self.is_symbol("*"):
-            return self.parse_op_flatten()
-
-        elif self.is_symbol("@"):
-            return self.parse_op_sort()
-
-        elif self.is_symbol("|"):
-            return self.parse_op_filter()
-
-        elif self.is_symbol("["):
-            return self.parse_op_take()
-
-        elif self.is_symbol("%"):
-            return self.parse_op_var()
-
-        elif self.is_symbol("="):
-            return self.parse_op_assign()
-
-        else:
+        t_type, _, t_string = self.t_token
+        if t_type != ERNALexer.t_symbol:
             raise ERNAErrorIndex(self.t_token.t_index, "Unexpected Token")
 
+        table = {
+            "." : self.parse_op_prop,
+            "#" : self.parse_op_map,
+            "!" : self.parse_op_init,
+            "*" : self.parse_op_flatten,
+            "@" : self.parse_op_sort,
+            "|" : self.parse_op_filter,
+            "[" : self.parse_op_take,
+            "%" : self.parse_op_var,
+            "=" : self.parse_op_assign,
+            "\\" : self.parse_op_delay,
+        }
+
+        parse_op = table.get(t_string, None)
+        if parse_op is None:
+            raise ERNAErrorIndex(self.t_token.t_index, "Unexpected Token")
+        else:
+            return parse_op()
+
     def parse_op_prop(self):
-        """Return ERNAAst(op_prop, [prop])"""
+        """Return ERNANode(op_prop, [prop])"""
         if self.is_symbol("."): self.next()
 
         props = [self.match_token(ERNALexer.t_name).t_string]
@@ -173,32 +169,44 @@ class ERNAParser:
             self.next()
             props.append(self.match_token(ERNALexer.t_name).t_string)
 
-        return ERNAAst(self.op_prop, props)
+        return ERNANode(self.op_prop, props)
 
-    def parse_op_flatten(self):
-        """Return ERNAAst(op_flatten, (expr_index, expr))"""
-        index = self.match_symbol("*").t_index
-        expr = "$$"
-
+    def parse_op_expr(self, symbol, op_type):
+        """Return ERNANode(op_type, (expr_index, expr))"""
+        self.match_symbol(symbol)
+        _, index, expr = self.match_token(ERNALexer.t_expr)
+        return ERNANode(op_type, (index + 1, expr[1:-1]))
+    
+    def parse_op_expr_allow_empty(self, symbol, op_type):
+        """Return ERNANode(op_type, (expr_index, expr))"""
+        self.match_symbol(symbol)
+        index, expr = 0, "$$"
         if self.is_token(ERNALexer.t_expr):
             _, index, expr = self.match_token(ERNALexer.t_expr)
+        return ERNANode(op_type, (index + 1, expr[1:-1]))
 
-        return ERNAAst(self.op_flatten, (index + 1, expr[1:-1]))
+    def parse_op_map(self):
+        """Return ERNANode(op_flatten, (expr_index, expr))"""
+        return self.parse_op_expr("#", self.op_map)
+
+    def parse_op_init(self):
+        """Return ERNANode(op_map, (expr_index, expr))"""
+        return self.parse_op_expr("!", self.op_init)
+
+    def parse_op_flatten(self):
+        """Return ERNANode(op_flatten, (expr_index, expr))"""
+        return self.parse_op_expr_allow_empty("*", self.op_flatten)
 
     def parse_op_sort(self):
-        """Return ERNAAst(op_sort, (expr_index, expr))"""
-        self.match_symbol("@")
-        _, index, expr = self.match_token(ERNALexer.t_expr)
-        return ERNAAst(self.op_sort, (index + 1, expr[1:-1]))
+        """Return ERNANode(op_sort, (expr_index, expr))"""
+        return self.parse_op_expr_allow_empty("@", self.op_sort)
 
     def parse_op_filter(self):
-        """Return ERNAAst(op_filter, (expr_index, expr))"""
-        self.match_symbol("|")
-        _, index, expr = self.match_token(ERNALexer.t_expr)
-        return ERNAAst(self.op_filter, (index + 1, expr[1:-1]))
+        """Return ERNANode(op_filter, (expr_index, expr))"""
+        return self.parse_op_expr("|", self.op_filter)
 
     def parse_op_take(self):
-        """Return ERNAAst(op_filter, (start, stop, step))"""
+        """Return ERNANode(op_take, (start, stop, step))"""
         self.match_symbol("[")
 
         start, stop, step = None, None, None
@@ -214,22 +222,22 @@ class ERNAParser:
 
         self.match_symbol("]")
 
-        return ERNAAst(self.op_take, (start, stop, step))
+        return ERNANode(self.op_take, (start, stop, step))
 
     def parse_op_var(self):
-        """Return ERNAAst(op_filter, (expr_index, expr))"""
-
-        self.match_symbol("%")
-        _, index, expr = self.match_token(ERNALexer.t_expr)
-
-        return ERNAAst(self.op_var, (index + 1, expr[1:-1]))
+        """Return ERNANode(op_var, (expr_index, expr))"""
+        return self.parse_op_expr("%", self.op_var)
 
     def parse_op_assign(self):
-        """Return ERNAAst(op_filter, (name, expr_index, expr))"""
+        """Return ERNANode(op_filter, (name, expr_index, expr))"""
         self.match_symbol("=")
         name = self.match_token(ERNALexer.t_name).t_string
         _, index, expr = self.match_token(ERNALexer.t_expr)
-        return ERNAAst(self.op_assign, (name, index + 1, expr[1:-1]))
+        return ERNANode(self.op_assign, (name, index + 1, expr[1:-1]))
+
+    def parse_op_delay(self):
+        """Return ERNANode(op_var, (expr_index, expr))"""
+        return self.parse_op_expr("\\", self.op_delay)
 
 
 class Context:
@@ -264,11 +272,18 @@ class Context:
         return Context(data, self.ls)
 
 
+Assignment = namedtuple("Assignment", ["prop", "datas", "values"])
+Delay = namedtuple("Delay", ["expr_index", "expr", "context"])
+
+
 class Collection:
     def __init__(self, contexts):
         if len(contexts) == 0:
             raise CollectionErrorEmpty()
         self.contexts = contexts
+        self.assignments = []
+        self.delays = []
+
         self.assign_property = ""
         self.assign_datas = []
         self.assign_values = []
@@ -296,30 +311,25 @@ class Collection:
         return props
 
     def transform(self, erna_ast):
+        table = {
+            ERNAParser.op_prop : self.transform_op_prop,
+            ERNAParser.op_map : self.transform_op_map,
+            ERNAParser.op_init : self.transform_op_init,
+            ERNAParser.op_flatten : self.transform_op_flatten,
+            ERNAParser.op_sort : self.transform_op_sort,
+            ERNAParser.op_filter : self.transform_op_filter,
+            ERNAParser.op_take : self.transform_op_take,
+            ERNAParser.op_var : self.transform_op_var,
+            ERNAParser.op_assign : self.transform_op_assign,
+            ERNAParser.op_delay : self.transform_op_delay,
+        }
+
         for op, value in erna_ast:
-            if op == ERNAParser.op_prop:
-                self.transform_op_prop(value)
-
-            elif op == ERNAParser.op_flatten:
-                self.transform_op_flatten(value)
-
-            elif op == ERNAParser.op_sort:
-                self.transform_op_sort(value)
-
-            elif op == ERNAParser.op_filter:
-                self.transform_op_filter(value)
-
-            elif op == ERNAParser.op_take:
-                self.transform_op_take(value)
-
-            elif op == ERNAParser.op_var:
-                self.transform_op_var(value)
-
-            elif op == ERNAParser.op_assign:
-                self.transform_op_assign(value)
-                
-            else:
+            transform_op = table.get(op, None)
+            if transform_op is None:
                 raise CollectionErrorOperation()
+            else:
+                transform_op(value)
 
     def transform_op_prop(self, props):
         self.contexts = [
@@ -327,17 +337,42 @@ class Collection:
             for context in self.contexts
         ]
 
-    def transform_op_flatten(self, value):
-        expr_index, expr = value
-
+    def transform_op_map(self, value):
         contexts_new = []
         length = len(self.contexts)
 
         for index, context in enumerate(self.contexts):
             data, ls = context.data, context.ls
+            ls_ext = {
+                "length" : length,
+                "index" : index,
+                "data" : data,
+            }
+            context_ext = context.extend_ls(ls_ext)
+            data_new = context_ext.eval(*value)
+            context_new = Context(data_new, ls)
+            contexts_new.append(context_new)
+
+        self.contexts = contexts_new
+
+    def transform_op_init(self, value):
+        data = Context(None, Expression_Globals).eval(*value).data
+
+        if not hasattr(data, "__iter__"):
+                raise CollectionErrorNoIter(data)
+        
+        self.contexts = [Context(item) for item in data]
+
+    def transform_op_flatten(self, value):
+        contexts_new = []
+        length = len(self.contexts)
+        _, expr = value
+
+        for index, context in enumerate(self.contexts):
+            data, ls = context.data, context.ls
 
             if not hasattr(data, "__iter__"):
-                raise CollectionErrorFlatten()
+                raise CollectionErrorNoIter(data)
 
             length_data = len(data)
 
@@ -357,23 +392,22 @@ class Collection:
                     }
                     context_item = Context(item, ls) 
                     context_ext = context_item.extend_ls(ls_ext)
-                    ls_new = context_ext.eval(expr_index, expr).data
-                    contexts_new.append(context_item.extend_ls(ls_new))
+                    ls_new = context_ext.eval(*value).data
+                    context_new = context_item.extend_ls(ls_new)
+                    contexts_new.append(context_new)
 
         self.contexts = contexts_new
 
     def transform_op_sort(self, value):
-        expr_index, expr = value
         length = len(self.contexts)
 
         def sort_key(context):
             ls_ext = {"data": context.data, "length": length}
-            return context.extend_ls(ls_ext).eval(expr_index, expr).data
+            return context.extend_ls(ls_ext).eval(*value).data
 
         self.contexts.sort(key=sort_key)
 
     def transform_op_filter(self, value):
-        expr_index, expr = value
         contexts_new = []
         length = len(self.contexts)
 
@@ -383,7 +417,7 @@ class Collection:
                 "index" : index,
                 "length" : length,
             }
-            if context.extend_ls(ls_ext).eval(expr_index, expr).data:
+            if context.extend_ls(ls_ext).eval(*value).data:
                 contexts_new.append(context)
 
         if len(contexts_new) == 0:
@@ -399,7 +433,6 @@ class Collection:
             raise CollectionErrorException(error)
 
     def transform_op_var(self, value):
-        expr_index, expr = value
         contexts_new = []
         length = len(self.contexts)
 
@@ -410,41 +443,53 @@ class Collection:
                 "length" : length,
             }
             context_ext = context.extend_ls(ls_ext)
-            ls_new = context_ext.eval(expr_index, expr).data
+            ls_new = context_ext.eval(*value).data
             contexts_new.append(context.extend_ls(ls_new))
 
         self.contexts = contexts_new
 
     def transform_op_assign(self, values):
         name, expr_index, expr = values
-        self.assign_property = name
-        self.assign_datas = []
-        self.assign_values = []
+        assignment = Assignment(name, [], [])
 
         length = len(self.contexts)
         
         for index, context in enumerate(self.contexts):
             assign_data = context.data
-            self.assign_datas.append(assign_data)
+            assignment.datas.append(assign_data)
 
             prop_context = context.access_property(name)
             prop_data = prop_context.data
             prop_type = type(prop_data)
 
             ls_ext = {"data": prop_data, "index": index, "length": length}
-            assign_value = prop_context.extend_ls(ls_ext).eval(expr_index, expr).data
+            context_ext = prop_context.extend_ls(ls_ext)
+            assign_value = context_ext.eval(expr_index, expr).data
 
             expect, actual = prop_type, type(assign_value)
             if expect != actual:
                 raise CollectionErrorAssignType(expect, actual)
 
-            self.assign_values.append(assign_value)
+            assignment.values.append(assign_value)
+        
+        self.assignments.append(assignment)
 
-    def batch_assign(self):
+    def transform_op_delay(self, value):
+        expr_index, expr = value
+        self.delays = [
+            Delay(expr_index, expr, context)
+            for context in self.contexts
+        ]
+
+    def assign(self):
         try:
-            z = zip(self.assign_datas, self.assign_values)
-            for assign_data, assign_value in z:
-                setattr(assign_data, self.assign_property, assign_value)
+            for assignment in self.assignments:
+                prop = assignment.prop
+                for data, value in zip(assignment.datas, assignment.values):
+                    setattr(data, prop, value)
+
+            for delay in self.delays:
+                delay.context.eval(delay.expr_index, delay.expr)
 
         except Exception as error:
             raise CollectionErrorAssign(error)
@@ -455,12 +500,24 @@ class BatchAssign_MainControl:
     def __init__(self):
         self.collections = None
 
+    def insert_erna(self, index):
+        with MainModelChangeContext() as model:
+            model.erna_count += 1
+            model.ernas.add()
+            for i in range(len(model.ernas) - 1, index, -1):
+                model.ernas.move(i - 1, i)
+
+    def remove_erna(self, index):
+        with MainModelChangeContext() as model:
+            model.erna_count -= 1
+            model.ernas.remove(index)
+
     def update(self):
         self.update_model()
 
     def batch_assign(self):
         for collection in self.collections:
-            collection.batch_assign()
+            collection.assign()
 
     def update_model(self):
         model = BatchAssign_MainModel.get()
@@ -505,9 +562,7 @@ class BatchAssign_MainControl:
 
             prev_collection = None
             if self.index == 0:
-                prev_collection = Collection([
-                    Context(Collection_Initial())
-                ])
+                prev_collection = Collection([Context(None)])
             else:
                 prev_collection = self.collections[self.index - 1]
                 

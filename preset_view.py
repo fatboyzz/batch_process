@@ -5,9 +5,9 @@ from .preset_control import *
 
 
 @register_class
-class BatchAssign_PresetControlLoadFile(bpy.types.Operator):
+class BatchAssign_OP_PresetControlLoadFile(bpy.types.Operator):
     bl_idname = "batch_assign.preset_control_load_file"
-    bl_label = "Preset Control Load File"
+    bl_label = "Load File"
 
     file : StringProperty(
         name = "Preset File",
@@ -16,6 +16,22 @@ class BatchAssign_PresetControlLoadFile(bpy.types.Operator):
 
     def execute(self, context):
         BatchAssign_PresetControl.get().load_file(self.file)
+        return {"FINISHED"}
+
+
+@register_class
+class BatchAssign_OP_PresetControlWriteERNAS(bpy.types.Operator):
+    bl_idname = "batch_assign.preset_control_write_ernas"
+    bl_label = "Write ERNAS"
+    bl_description = "Write ERNAS To Preset File With Preset Key"
+
+    file : StringProperty(
+        name = "Preset File",
+        default = "batch_assign_preset.txt",
+    )
+
+    def execute(self, context):
+        BatchAssign_PresetControl.get().write_ernas(self.file)
         return {"FINISHED"}
 
 
@@ -30,15 +46,15 @@ class BatchAssign_MT_PresetFileMenu(bpy.types.Menu):
         for text in bpy.data.texts:
             file = text.name
             self.layout.operator(
-                BatchAssign_PresetControlLoadFile.bl_idname,
+                BatchAssign_OP_PresetControlLoadFile.bl_idname,
                 text = file
             ).file = file
 
 
 @register_class
-class BatchAssign_PresetControlLoadKey(bpy.types.Operator):
+class BatchAssign_OP_PresetControlLoadKey(bpy.types.Operator):
     bl_idname = "batch_assign.preset_control_load_key"
-    bl_label = "Preset Control Load Key"
+    bl_label = "Load Key"
 
     key : StringProperty(
         name = "Preset Key",
@@ -53,14 +69,14 @@ class BatchAssign_PresetControlLoadKey(bpy.types.Operator):
 @register_class
 class BatchAssign_MT_PresetKeyMenu(bpy.types.Menu):
     bl_idname = "BatchAssign_MT_PresetKeyMenu"
-    bl_label = "Select Preset Key"
+    bl_label = "Select Key"
 
     def draw(self, context):
         control = BatchAssign_PresetControl.get()
         
         for key in control.preset.datas.keys():
             self.layout.operator(
-                BatchAssign_PresetControlLoadKey.bl_idname,
+                BatchAssign_OP_PresetControlLoadKey.bl_idname,
                 text = key
             ).key = key
 
@@ -102,5 +118,8 @@ class BatchAssign_PT_PresetPanel(bpy.types.Panel):
             text = "Select Preset Key" if loaded is None else loaded,
         )
 
+        layout.operator(
+            BatchAssign_OP_PresetControlWriteERNAS.bl_idname,
+        ).file = control.preset_file_loaded
         
         

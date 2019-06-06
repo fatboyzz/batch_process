@@ -15,11 +15,41 @@ class BatchAssign_OP_MainControlUpdate(bpy.types.Operator):
 @register_class
 class BatchAssign_OP_MainControlBatchAssign(bpy.types.Operator):
     bl_idname = "batch_assign.main_control_batch_assign"
-    bl_label = "Update Collection"
-    bl_description = "Batch Assign Value"
+    bl_label = "Assign Value"
+    bl_description = "Assign Value"
     
     def execute(self, context):
         BatchAssign_MainControl.get().batch_assign()
+        return {'FINISHED'}
+
+@register_class
+class BatchAssign_OP_MainControlInsertERNA(bpy.types.Operator):
+    bl_idname = "batch_assign.main_control_insert_erna"
+    bl_label = "Insert ERNA"
+    bl_description = "Insert ERNA"
+
+    index : IntProperty(
+        description = "Insert Index",
+        default = 0,
+    )
+
+    def execute(self, context):
+        BatchAssign_MainControl.get().insert_erna(self.index)
+        return {'FINISHED'}
+
+@register_class
+class BatchAssign_OP_MainControlRemoveERNA(bpy.types.Operator):
+    bl_idname = "batch_assign.main_control_remove_erna"
+    bl_label = "Remove ERNA"
+    bl_description = "Remove ERNA"
+
+    index : IntProperty(
+        description = "Remove Index",
+        default = 0,
+    )
+
+    def execute(self, context):
+        BatchAssign_MainControl.get().remove_erna(self.index)
         return {'FINISHED'}
     
 @register_class
@@ -44,7 +74,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
     def draw_update_button(self):
         layout = self.layout
         layout.operator(
-            "batch_assign.main_control_update",
+            BatchAssign_OP_MainControlUpdate.bl_idname,
             text = "Update",
         )
 
@@ -64,28 +94,44 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         self.draw_ernas()
 
     def draw_ernas(self):
-        for index in range(BatchAssign_MainModel.get().erna_count):
+        control = BatchAssign_MainControl.get()
+        model = BatchAssign_MainModel.get()
+
+        for index in range(model.erna_count):
             self.index = index
+            self.layout_erna = self.layout.box()
+            self.model_erna = model.ernas[index]
+            self.collection = control.collections[index]
             self.draw_erna()
 
         self.draw_assign_button()
 
     def draw_assign_button(self):
         self.layout.operator(
-            "batch_assign.main_control_batch_assign",
+            BatchAssign_OP_MainControlBatchAssign.bl_idname,
             text = "Assign",
         )
 
     def draw_erna(self):
-        self.layout_erna = self.layout.box()
-
-        model = BatchAssign_MainModel.get().ernas[self.index]
+        model = self.model_erna
         layout = self.layout_erna
         
         layout_row = layout.row(align = True)
         layout_row.label(text = "ERNA {0}:".format(self.index))
 
         toggle = model.enable_collection_preview
+        layout_row.operator(
+            BatchAssign_OP_MainControlInsertERNA.bl_idname,
+            text = "",
+            icon = "ADD",
+        ).index = self.index
+
+        layout_row.operator(
+            BatchAssign_OP_MainControlRemoveERNA.bl_idname,
+            text = "",
+            icon = "REMOVE",
+        ).index = self.index
+
         layout_row.prop(
             data = model,
             property = "enable_collection_preview",
@@ -93,18 +139,26 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
             icon = "HIDE_OFF" if toggle else "HIDE_ON",
         )
 
+        toggle = model.enable_assignment_preview
+        layout_row.prop(
+            data = model,
+            property = "enable_assignment_preview",
+            text = "",
+            icon = "MODIFIER_OFF" if toggle else "MODIFIER_ON",
+        )
+
         toggle = model.enable_accessable_property
         layout_row.prop(
             data = model,
             property = "enable_accessable_property",
             text = "",
-            icon = "RESTRICT_VIEW_OFF" if toggle else "RESTRICT_VIEW_ON",
+            icon = "WORDWRAP_OFF" if toggle else "WORDWRAP_ON",
         )
 
         self.draw_erna_data()
 
     def draw_erna_data(self):
-        model = BatchAssign_MainModel.get().ernas[self.index]
+        model = self.model_erna
         layout = self.layout_erna
         layout_column = layout.column(align = True)
 
@@ -135,29 +189,40 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         if model.enable_collection_preview:
             self.draw_collection_preview()
 
+        if model.enable_assignment_preview:
+            self.draw_assignment_preview()
+
         if model.enable_accessable_property:
             self.draw_accessable_property()
 
+
     def draw_collection_preview(self):
-        control = BatchAssign_MainControl.get()
-        collection = control.collections[self.index]
+        collection = self.collection
+        if len(collection.contexts) == 0: return
 
         layout = self.layout_erna
         layout_column = layout.column(align = True)
 
-        if not collection.has_assign():
-            for context in collection.contexts:
-                layout_column.label(text = str(context.data))
+        for context in collection.contexts:
+            layout_column.label(text = str(context.data))
 
-        else:
-            datas_values = zip(collection.assign_datas, collection.assign_values)
-            for data, value in datas_values:
+
+    def draw_assignment_preview(self):
+        collection = self.collection
+        assignments = collection.assignments
+        if len(assignments) == 0: return
+
+        layout = self.layout_erna
+        layout_column = layout.column(align = True)
+
+        for assignment in assignments:
+            for data, value in zip(assignment.datas, assignment.values):
                 layout_row = layout_column.row(align = True)
 
                 if isinstance(data, bpy.types.bpy_struct):
                     layout_row.prop(
                         data = data,
-                        property = collection.assign_property,
+                        property = assignment.prop,
                         text = "",
                     )
                 else:
@@ -166,13 +231,17 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
                     )    
 
                 layout_row.label(text = str(value))
+    
 
     def draw_accessable_property(self):
-        control = BatchAssign_MainControl.get()
-        collection = control.collections[self.index]
+        collection = self.collection
+        props = collection.accessable_properties()
+        if len(props) == 0: return
 
         layout = self.layout_erna
         layout_column = layout.column_flow(align = True, columns = 2)
 
-        for prop in collection.accessable_properties():
+        for prop in props:
             layout_column.label(text = prop)
+
+    
