@@ -1,6 +1,65 @@
-# Renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
-Rename Sort By X
+## Rename selected objects into "obj_000", "obj_001", ... sorted by their x position.
+Rename_Objects_Sort_By_X
 !$bpy.context.selected_objects$
 @$data.location.x$
 =name$"obj_{0:03}".format(index)$
+
+
+## Rename bones from "leg left thigh" to "leg___thigh.L" and "leg right thigh" to "leg___thigh.R".
+## Note : If you set Armature Modifier properly, changing bones name will automatically change corresponding name of vertex groups
+Rename_Bones_Append_LR
+!$bpy.context.selected_objects$data.bones*
+%${"left" : " left ", "right" : " right ", "holder" : "___"}$
+%${"is_left" : left in data.name, "is_right" : right in data.name}$
+|$is_left or is_right$
+=name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$
+
+## Note : If you set Armature Modifier properly, changing bones name will automatically change corresponding name of vertex groups
+## Rename bones from "leg___thigh.L" to "leg left thigh" and "leg___thigh.R" to "leg right thigh".
+Rename_Bones_Trim_LR
+!$bpy.context.selected_objects$data.bones*
+%${"left" : " left ", "right" : " right ", "holder" : "___"}$
+%${"is_left" : data.name.endswith(".L"), "is_right" : data.name.endswith(".R")}$
+|$is_left or is_right$
+=name$prop[0:-2].replace(holder, left if is_left else right)$
+
+## Rename vertex groups name from "leg left thigh" to "leg___thigh.L" and "leg right thigh" to "leg___thigh.R".
+Rename_Vertex_Groups_Append_LR
+!$bpy.context.selected_objects$vertex_groups*
+%${"left" : " left ", "right" : " right ", "holder" : "___"}$
+%${"is_left" : left in data.name, "is_right" : right in data.name}$
+|$is_left or is_right$
+=name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$
+
+## Rename vertex groups name from "leg___thigh.L" to "leg left thigh" and "leg___thigh.R" to "leg right thigh".
+Rename_Vertex_Groups_Trim_LR
+!$bpy.context.selected_objects$vertex_groups*
+%${"left" : " left ", "right" : " right ", "holder" : "___"}$
+%${"is_left" : data.name.endswith(".L"), "is_right" : data.name.endswith(".R")}$
+|$is_left or is_right$
+=name$prop[0:-2].replace(holder, left if is_left else right)$
+
+
+## Rename materials of selected objects into `"<obj_name>_00"`, `"<obj_name>_01"`...
+Rename_Materials_With_Object_Name
+!$bpy.context.selected_objects$
+%${"obj_name" : data.name}$
+material_slots*${"mat_index" : index_item}$material
+=name$"{0}_{1:02}".format(obj_name, mat_index)$
+
+
+## Reload all images used by selected objects' materials
+!$bpy.context.selected_objects$
+data.materials*node_tree.nodes*
+|$data.bl_idname == "ShaderNodeTexImage"$.image
+\$data.reload()$
+
+
+## Import "*.obj" files in folder "obj" (reletive to current blend file).
+Import_Obj_Files
+!$[bpy.path.abspath("//obj")]$%${"dirpath" : data}$
+-$os.listdir(dirpath)$*
+|$data.endswith(".obj")$
+-$os.path.join(dirpath, data)$
+\$bpy.ops.import_scene.obj(filepath=data)$
 

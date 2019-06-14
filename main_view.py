@@ -13,13 +13,13 @@ class BatchAssign_OP_MainControlUpdate(bpy.types.Operator):
         return {'FINISHED'}
 
 @register_class
-class BatchAssign_OP_MainControlBatchAssign(bpy.types.Operator):
-    bl_idname = "batch_assign.main_control_batch_assign"
+class BatchAssign_OP_MainControlAssign(bpy.types.Operator):
+    bl_idname = "batch_assign.main_control_assign"
     bl_label = "Assign Value"
     bl_description = "Assign Value"
     
     def execute(self, context):
-        BatchAssign_MainControl.get().batch_assign()
+        BatchAssign_MainControl.get().assign()
         return {'FINISHED'}
 
 @register_class
@@ -85,8 +85,7 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
             self.draw_erna_count()
 
     def draw_erna_count(self):
-        layout = self.layout
-        layout.prop(
+        self.layout.prop(
             data = BatchAssign_MainModel.get(),
             property = "erna_count",
         )
@@ -107,10 +106,15 @@ class BatchAssign_PT_MainPanel(bpy.types.Panel):
         self.draw_assign_button()
 
     def draw_assign_button(self):
+        model = BatchAssign_MainModel.get()
+
         self.layout.operator(
-            BatchAssign_OP_MainControlBatchAssign.bl_idname,
+            BatchAssign_OP_MainControlAssign.bl_idname,
             text = "Assign",
         )
+
+        error = model.assign_error
+        self.draw_error(self.layout, error)
 
     def draw_erna(self):
         model = self.model_erna

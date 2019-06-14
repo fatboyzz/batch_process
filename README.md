@@ -3,15 +3,15 @@
 ## Why Batch Assign add-on
 Sometimes we want to set multiple properties with some simple rules.
 
-These rules including:
+These rules include
 
 - Renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
-- Renaming all bones of an armature from "bone_left" to "bone.L" and same changes to corresponding vertex groups.
+- Renaming all bones of an armature from "bone_left" to "bone.L".
 
 Batch Assign add-on helps you get these jobs done with one string instead of
 
 - Writing a 20 line python script with multiple for loops and takes you some time to debug.
-- Working with complecated renaming ui which may or may not reach your specific needs.
+- Working with complecated ui which may or may not reach your specific needs.
 - Doing them one by one.
 
 ## Warning
@@ -182,9 +182,9 @@ Introduce new local variables to *data*.
 
 | Variable | Value                        |
 |----------|------------------------------|
-| data     | value of *data*              |
-| index    | index of *data* start from 0 |
 | length   | length of *collection*       |
+| index    | index of *data* start from 0 |
+| data     | value of *data*              |
 
 The return value of `<expr>` is a dict which is used to introduce new local variables to *data*.
 This operation will not change *collection*.
@@ -199,9 +199,16 @@ This operation will not change *collection*.
 =<name>$<expr>$
 ```
 
-Declare an assignment that assign value of `<expr>` to *data*'s `<name>` property.
+Store an assignment which assign value of `<expr>` to *data*.`<name>` property.
 Will do the actual assignment after user clicking the Assign button.
 This operation will not change *collection*.
+
+| Variable | Value                        |
+|----------|------------------------------|
+| length   | length of *collection*       |
+| index    | index of *data* start from 0 |
+| data     | value of *data*              |
+| prop     | value of *data*`.<name>`     |
 
 ### Global Variables
 All python expression `<expr>` may access global variables in following table.
@@ -218,7 +225,7 @@ you have to manually change `Expression_Globals` in source code file `globals_mo
 erna -> op* t_stop
 op -> one of op_???
 op_prop -> ["."] t_name ("." op_prop)*
-op_map -> "#" t_expr
+op_map -> "-" t_expr
 op_init -> "!" (t_expr | t_number)
 op_flatten -> "*" [ t_expr ]
 op_sort -> "@" [ t_expr ]
@@ -229,20 +236,10 @@ op_assign -> "=" t_name t_expr
 op_delay -> "\" t_expr
 ```
 
-## ERNA Examples
-File `EXAMPLES.txt` in source code listed all examples bellow as a preset file.
-
-- Renaming objects selected into "obj_001", "obj_002", ... , "obj_100" sorted by their x position.
-- Renaming all bones of an armature from "bone_left" to "bone.L" and same changes to corresponding vertex groups.
-- Renaming all materials of selected objects into `"<obj_name>_M00"`, `"<obj_name>_M01"`, 
-- Importing all "*.obj" files in folder obj.
-- Set "obj_color_00.tga", "obj_normal_00.tga", "obj_srma_00.tga", "obj_color_01.tga" ... into corresponding image node of obj's material slot.
-
 ## Preset File
 A preset file is just a plain text file which save multiple ERNA with keys.
 It is saved as text data so you may edit it with blender text editor or append it across blender files.
 The Batch Assign Preset Panel is used to load preset file and set ERNA to Batch Assign Main Panel.
-The preset file is loaded into an `OrderedList` thus the keys are sorted.
 A preset file has a simple line based syntax showing bellow.
 
 ```
@@ -260,3 +257,6 @@ A preset file has a simple line based syntax showing bellow.
 <key_2>
 <erna_0>
 ```
+
+## Examples
+File `EXAMPLES.txt` in source code show some examples in preset file syntax.

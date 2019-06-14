@@ -13,7 +13,7 @@ class Preset:
 
     def file_lines(self, file):
         text = bpy.data.texts[file]
-        if len(text.lines) == 0: raise PresetErrorEmpty()
+        if len(text.lines) == 0: raise PresetErrorFileEmpty()
         for line in text.lines:
             body = line.body
             index = body.find("#")
@@ -99,7 +99,7 @@ class BatchAssign_PresetControl:
             
 
     def load_key(self, key):
-        with MainModelERNAChangeContext():
+        with MainModelChangeContext():
             self.preset_key_loaded = None
             model = BatchAssign_MainModel.get()
 
@@ -114,10 +114,12 @@ class BatchAssign_PresetControl:
 
     def write_ernas(self, file):
         texts = bpy.data.texts 
-        text_index = texts.find(file)
-        if text_index == -1: return
+        text = texts.get(file, None)
+        if text is None: return
 
-        text = texts[text_index]
-        text.write(self.preset_key_loaded + "\n")
-        for model in BatchAssign_MainModel.get().ernas:
-            text.write(model.erna + "\n")
+        lines = [ "# ERNA", "ERNA" ]
+        lines.extend([model.erna for model in BatchAssign_MainModel.get().ernas])
+        lines.append("")
+        
+        text.write("\n".join(lines))
+        

@@ -36,8 +36,10 @@ class CollectionErrorOperation(CollectionError):
     def __str__(self): return "Collection Unknown Operation"
 
 class CollectionErrorEval(CollectionError):
-    def __init__(self, error): self.error = error
-    def __str__(self): return str(self.error)
+    def __init__(self, error): 
+        self.error = error
+    def __str__(self): 
+        return str(self.error)
 
 class CollectionErrorProperty(CollectionError):
     def __init__(self, prop):
@@ -59,6 +61,13 @@ class CollectionErrorAssignType(CollectionError):
         return "Assign Type {0} to Type {1}".format(
             self.expect.__name__, self.actual.__name__
         )
+
+
+class AssignError(Exception): 
+    def __init__(self, error):
+        self.error = error
+    def __str__(self):
+        return str(self.error)
 
 
 def main_model_update(self, context):
@@ -140,4 +149,9 @@ class BatchAssign_MainModel(bpy.types.PropertyGroup):
 
     ernas : CollectionProperty(
         type = BatchAssign_MainERNAModel
+    )
+
+    assign_error : StringProperty(
+        description = "Assign Error",
+        default = "",
     )

@@ -23,7 +23,7 @@ class BatchAssign_OP_PresetControlLoadFile(bpy.types.Operator):
 class BatchAssign_OP_PresetControlWriteERNAS(bpy.types.Operator):
     bl_idname = "batch_assign.preset_control_write_ernas"
     bl_label = "Write ERNAS"
-    bl_description = "Write ERNAS To Preset File With Preset Key"
+    bl_description = "Write ERNAS To Preset File"
 
     file : StringProperty(
         name = "Preset File",
@@ -41,8 +41,6 @@ class BatchAssign_MT_PresetFileMenu(bpy.types.Menu):
     bl_label = "Select Preset File"
 
     def draw(self, context):
-        control = BatchAssign_PresetControl.get()
-
         for text in bpy.data.texts:
             file = text.name
             self.layout.operator(
@@ -101,9 +99,11 @@ class BatchAssign_PT_PresetPanel(bpy.types.Panel):
         control = BatchAssign_PresetControl.get()
 
         layout = self.layout.column(align = True)
+        layout_row = layout.row(align = True)
 
         loaded = control.preset_file_loaded
-        layout.menu(
+
+        layout_row.menu(
             BatchAssign_MT_PresetFileMenu.bl_idname,
             text = "Select Preset File" if loaded is None else loaded,
         )
@@ -111,15 +111,15 @@ class BatchAssign_PT_PresetPanel(bpy.types.Panel):
         error = model.preset_error
         if self.draw_error(layout, error): return
         if control.preset_file_loaded is None: return
+
+        layout_row.operator(
+            BatchAssign_OP_PresetControlWriteERNAS.bl_idname,
+            text = "",
+            icon = "COPYDOWN",
+        ).file = control.preset_file_loaded
         
         loaded = control.preset_key_loaded
         layout.menu(
             BatchAssign_MT_PresetKeyMenu.bl_idname,
             text = "Select Preset Key" if loaded is None else loaded,
         )
-
-        layout.operator(
-            BatchAssign_OP_PresetControlWriteERNAS.bl_idname,
-        ).file = control.preset_file_loaded
-        
-        

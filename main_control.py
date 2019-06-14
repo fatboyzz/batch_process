@@ -22,7 +22,7 @@ class ERNALexer:
     t_expr = t_count()
 
     re_table = [
-        (t_symbol, re.compile(r"""[\.#!*@|\[:\]%=\\]""")),
+        (t_symbol, re.compile(r"""[\.\-!*@|\[:\]%=\\]""")),
         (t_name, re.compile(r"""[A-Za-z_][A-Za-z_0-9]*""")),
         (t_number, re.compile(r"""[0-9-]+""")),
         (t_expr, re.compile(r"""\$[^\$]*\$""")),
@@ -142,7 +142,7 @@ class ERNAParser:
 
         table = {
             "." : self.parse_op_prop,
-            "#" : self.parse_op_map,
+            "-" : self.parse_op_map,
             "!" : self.parse_op_init,
             "*" : self.parse_op_flatten,
             "@" : self.parse_op_sort,
@@ -180,14 +180,15 @@ class ERNAParser:
     def parse_op_expr_allow_empty(self, symbol, op_type):
         """Return ERNANode(op_type, (expr_index, expr))"""
         self.match_symbol(symbol)
-        index, expr = 0, "$$"
         if self.is_token(ERNALexer.t_expr):
             _, index, expr = self.match_token(ERNALexer.t_expr)
-        return ERNANode(op_type, (index + 1, expr[1:-1]))
+            return ERNANode(op_type, (index + 1, expr[1:-1]))
+        else:
+            return ERNANode(op_type, None)
 
     def parse_op_map(self):
         """Return ERNANode(op_flatten, (expr_index, expr))"""
-        return self.parse_op_expr("#", self.op_map)
+        return self.parse_op_expr("-", self.op_map)
 
     def parse_op_init(self):
         """Return ERNANode(op_map, (expr_index, expr))"""
@@ -212,13 +213,12 @@ class ERNAParser:
         start, stop, step = None, None, None
         start = int(self.match_token(ERNALexer.t_number).t_string)
 
+        self.match_symbol(":")
+        stop = int(self.match_token(ERNALexer.t_number).t_string)
+
         if self.is_symbol(":"):
             self.next()
-            stop = int(self.match_token(ERNALexer.t_number).t_string)
-
-            if self.is_symbol(":"):
-                self.next()
-                step = int(self.match_token(ERNALexer.t_number).t_string)
+            step = int(self.match_token(ERNALexer.t_number).t_string)
 
         self.match_symbol("]")
 
@@ -264,12 +264,11 @@ class Context:
 
     def eval(self, expr_index, expr):
         try:
-            data = eval(expr, Expression_Globals, self.ls)
+            return eval(expr, Expression_Globals, self.ls)
         except SyntaxError as error:
             raise ERNAErrorIndex(expr_index + error.offset, error.msg)
         except Exception as error:
             raise CollectionErrorEval(error)
-        return Context(data, self.ls)
 
 
 Assignment = namedtuple("Assignment", ["prop", "datas", "values"])
@@ -356,7 +355,7 @@ class Collection:
         self.contexts = contexts_new
 
     def transform_op_init(self, value):
-        data = Context(None, Expression_Globals).eval(*value).data
+        data = Context(None, Expression_Globals).eval(*value)
 
         if not hasattr(data, "__iter__"):
                 raise CollectionErrorNoIter(data)
@@ -366,7 +365,6 @@ class Collection:
     def transform_op_flatten(self, value):
         contexts_new = []
         length = len(self.contexts)
-        _, expr = value
 
         for index, context in enumerate(self.contexts):
             data, ls = context.data, context.ls
@@ -376,7 +374,7 @@ class Collection:
 
             length_data = len(data)
 
-            if len(expr) == 0:
+            if value is None:
                 for item in data:
                     contexts_new.append(Context(item, ls))
 
@@ -392,7 +390,7 @@ class Collection:
                     }
                     context_item = Context(item, ls) 
                     context_ext = context_item.extend_ls(ls_ext)
-                    ls_new = context_ext.eval(*value).data
+                    ls_new = context_ext.eval(*value)
                     context_new = context_item.extend_ls(ls_new)
                     contexts_new.append(context_new)
 
@@ -403,9 +401,12 @@ class Collection:
 
         def sort_key(context):
             ls_ext = {"data": context.data, "length": length}
-            return context.extend_ls(ls_ext).eval(*value).data
-
-        self.contexts.sort(key=sort_key)
+            return context.extend_ls(ls_ext).eval(*value)
+        
+        if value is None:
+            self.contexts.sort()
+        else:
+            self.contexts.sort(key=sort_key)
 
     def transform_op_filter(self, value):
         contexts_new = []
@@ -417,7 +418,7 @@ class Collection:
                 "index" : index,
                 "length" : length,
             }
-            if context.extend_ls(ls_ext).eval(*value).data:
+            if context.extend_ls(ls_ext).eval(*value):
                 contexts_new.append(context)
 
         if len(contexts_new) == 0:
@@ -427,10 +428,9 @@ class Collection:
 
     def transform_op_take(self, numbers):
         start, stop, step = numbers
-        try:
-            self.contexts = self.contexts[start:stop:step]
-        except Exception as error:
-            raise CollectionErrorException(error)
+        self.contexts = self.contexts[start:stop:step]
+        if len(self.contexts) == 0:
+            raise CollectionErrorEmpty()
 
     def transform_op_var(self, value):
         contexts_new = []
@@ -443,7 +443,7 @@ class Collection:
                 "length" : length,
             }
             context_ext = context.extend_ls(ls_ext)
-            ls_new = context_ext.eval(*value).data
+            ls_new = context_ext.eval(*value)
             contexts_new.append(context.extend_ls(ls_new))
 
         self.contexts = contexts_new
@@ -453,20 +453,23 @@ class Collection:
         assignment = Assignment(name, [], [])
 
         length = len(self.contexts)
-        
         for index, context in enumerate(self.contexts):
             assign_data = context.data
             assignment.datas.append(assign_data)
 
             prop_context = context.access_property(name)
             prop_data = prop_context.data
-            prop_type = type(prop_data)
 
-            ls_ext = {"data": prop_data, "index": index, "length": length}
+            ls_ext = {
+                "length": length,
+                "index": index, 
+                "data": assign_data, 
+                "prop" : prop_data,
+            }
             context_ext = prop_context.extend_ls(ls_ext)
-            assign_value = context_ext.eval(expr_index, expr).data
+            assign_value = context_ext.eval(expr_index, expr)
 
-            expect, actual = prop_type, type(assign_value)
+            expect, actual = type(prop_data), type(assign_value)
             if expect != actual:
                 raise CollectionErrorAssignType(expect, actual)
 
@@ -476,10 +479,17 @@ class Collection:
 
     def transform_op_delay(self, value):
         expr_index, expr = value
-        self.delays = [
-            Delay(expr_index, expr, context)
-            for context in self.contexts
-        ]
+
+        length = len(self.contexts)
+        for index, context in enumerate(self.contexts):
+            ls_ext = {
+                "length": length,
+                "index": index, 
+                "data": context.data, 
+            }
+            context_ext = context.extend_ls(ls_ext)
+            delay = Delay(expr_index, expr, context_ext)
+            self.delays.append(delay)
 
     def assign(self):
         try:
@@ -492,7 +502,7 @@ class Collection:
                 delay.context.eval(delay.expr_index, delay.expr)
 
         except Exception as error:
-            raise CollectionErrorAssign(error)
+            raise AssignError(error)
 
 
 @singleton
@@ -515,9 +525,21 @@ class BatchAssign_MainControl:
     def update(self):
         self.update_model()
 
-    def batch_assign(self):
-        for collection in self.collections:
-            collection.assign()
+    def assign(self):
+        model = BatchAssign_MainModel.get()
+        model.assign_error = ""
+
+        try:
+            for collection in self.collections:
+                collection.assign()
+
+        except AssignError as error:
+            settings = BatchAssign_SettingsModel.get()
+
+            if settings.enable_debug_information:
+                print_traceback_and_set_clipboard()
+
+            model.assign_error = str(error)
 
     def update_model(self):
         model = BatchAssign_MainModel.get()
