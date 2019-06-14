@@ -288,7 +288,7 @@ class Collection:
     def accessable_properties(self):
         data = self.contexts[0].data
         props = sorted(dir(data))
-        settings = BatchAssign_SettingsModel.get()
+        settings = BatchProcess_SettingsModel.get()
 
         if not settings.enable_python_reserved_property:
             props = [
@@ -495,7 +495,7 @@ class Collection:
 
 
 @singleton
-class BatchAssign_MainControl:
+class BatchProcess_MainControl:
     def __init__(self):
         self.collections = None
 
@@ -515,7 +515,7 @@ class BatchAssign_MainControl:
         self.update_model()
 
     def assign(self):
-        model = BatchAssign_MainModel.get()
+        model = BatchProcess_MainModel.get()
         model.assign_error = ""
 
         try:
@@ -523,7 +523,7 @@ class BatchAssign_MainControl:
                 collection.assign()
 
         except AssignError as error:
-            settings = BatchAssign_SettingsModel.get()
+            settings = BatchProcess_SettingsModel.get()
 
             if settings.enable_debug_information:
                 print_traceback_and_set_clipboard()
@@ -531,7 +531,7 @@ class BatchAssign_MainControl:
             model.assign_error = str(error)
 
     def update_model(self):
-        model = BatchAssign_MainModel.get()
+        model = BatchProcess_MainModel.get()
         erna_count = len(model.ernas)
 
         if erna_count < model.erna_count:
@@ -545,7 +545,7 @@ class BatchAssign_MainControl:
         self.update_collections()
 
     def update_collections(self):
-        model = BatchAssign_MainModel.get()
+        model = BatchProcess_MainModel.get()
         erna_count = len(model.ernas)
         self.collections = [None] * erna_count
 
@@ -554,7 +554,7 @@ class BatchAssign_MainControl:
             self.update_collection()
 
     def erna_model(self):
-        return BatchAssign_MainModel.get().ernas[self.index]
+        return BatchProcess_MainModel.get().ernas[self.index]
 
     def clear_errors(self):
         model = self.erna_model()
@@ -589,7 +589,7 @@ class BatchAssign_MainControl:
             self.handle_errors(error)
 
     def handle_errors(self, error):
-        settings = BatchAssign_SettingsModel.get()
+        settings = BatchProcess_SettingsModel.get()
         model = self.erna_model()
 
         if settings.enable_debug_information:

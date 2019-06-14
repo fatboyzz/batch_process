@@ -1,14 +1,13 @@
 bl_info = {
-    "name": "Batch Assign",
+    "name": "Batch Process",
     "description": (
-        "Select properties with extended rna data path syntax "
-        "then batch assign new value."
+        "Batch Process Multiple Properties With ERNA Syntax"
     ),
     "author": "fatboyzz",
     "version": (1, 0, 0),
     "blender": (2, 80, 0),
     "location": (
-        "N Panel > Misc > Batch Assign"
+        "N Panel > Misc > Batch Process"
     ),
     "support": "COMMUNITY",
     "category": "Object"

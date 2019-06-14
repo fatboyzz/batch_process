@@ -1,6 +1,6 @@
-# Batch Assign - Batch Assign Multiple Properties With ERNA Syntax
+# Batch Process - Batch Process Multiple Properties With ERNA Syntax
 
-## Why Batch Assign add-on
+## Why Batch Process add-on
 Sometimes we want to set properties or do some job with simple rules.
 These rules include
 
@@ -9,23 +9,23 @@ These rules include
 - Import "*.obj" files in folder "obj" (reletive to current blend file).
 - Reload all images used by selected objects' materials
 
-Batch Assign add-on helps you get these jobs done with one string instead of
+Batch Process add-on helps you get these jobs done with one string instead of
 
-- Writing a 20 line python script with multiple for loops and takes you some time to debug.
+- Writing a 10 ~ 20 line python script with multiple for loops and takes you some time to debug.
 - Working with complecated ui which may or may not reach your specific needs.
 - Doing them one by one.
 
 ## Warning
-- Batch Assign add-on is for blender 2.8 only.
+- Batch Process add-on is for blender 2.8 only.
 - To use this add-on effectively requires basic python programming skill.
 - You should be comfortable with python documentation and blender python api documentation.
 - Beta Version
 
 ## Installation
-1. Download the Batch Assign add-on source code somewhere.
+1. Download the Batch Process add-on source code somewhere.
 2. Copy folder `batch_assign` into *`<your blender path>/2.8/scripts/addons_contrib/`*.
 3. Open blender click *Edit->Preferences->Add-ons* and enable *Testing* support level.
-4. Search *Batch Assign* and enable it.
+4. Search *Batch Process* and enable it.
 
 ## How it works
 
@@ -39,7 +39,7 @@ ERNA is the rule of Transforming from one *collection* into another *collection*
 
 ### A Simple Example
 ```
-# Rename selected objects into "obj_000", "obj_001", ... sorted by their x position.
+## Rename selected objects into "obj_000", "obj_001", ... sorted by their x position.
 !$bpy.context.selected_objects$@$data.location.x$=name$"obj_{0:03}".format(index)$
 ```
 
@@ -66,19 +66,58 @@ The following steps show each part and how this add-on interpret them.
     The actual assignment is done later when user click assign button.
 
 ### Another Example With Binding Variables
+```
+## Rename bones from "leg left thigh" to "leg___thigh.L" and "leg right thigh" to "leg___thigh.R".
+!$bpy.context.selected_objects$data.bones*
+%${"left" : " left ", "right" : " right ", "holder" : "___"}$
+%${"is_left" : left in data.name, "is_right" : right in data.name}$
+|$is_left or is_right$
+=name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$
+```
+You may bind new variables into namespaces with ERNA.
+There are three namespaces when interpreting a ERNA. 
 
+| space              | description                                                                                         |
+|--------------------|-----------------------------------------------------------------------------------------------------|
+| *builtin space*    | accessable everywhere, you can't change this space during processing, mainly contain python modules |
+| *collection space* | one during ERNA processing, mainly contain settings at begining for ERNA                            |
+| *data space*       | one for each *data*, change with some operation                                                     |
 
+Interpret Steps
+1. `!$bpy.context.selected_objects$data.bones*` *Multiple Operations* `[<leg left thigh>, <leg right thigh>, <pelvis>]`
+
+    After Initial Operation, Property Operation, Flatten Operation.
+    We get bones of selected objects.
+
+2. `%${"left" : " left ", "right" : " right ", "holder" : "___"}$` *Variable Operation*
+
+    Introduce new variables into *collection space*.
+    Change these values to change the behavior of this ERNA.
+
+3. `%${"is_left" : left in data.name, "is_right" : right in data.name}$` *Variable Operation*
+
+    Introduce new variables into *data space*.
+    For *data* `<leg left thigh>` bind variables {"is_left":true, "is_right":false}.
+    For *data* `<leg right thigh>` bind variables {"is_left":false, "is_right":true}.
+
+4. `|$is_left or is_right$` *Filter Operation* `[<leg left thigh>, <leg right thigh>]`
+
+    Filter *collection* with variables we just bind.
+
+5. `=name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$` *Assign Operation*
+
+    Use variables we just bind to replace string and deside we append ".L" or ".R"
 
 ## User Interface
-After Batch Assign add-on enabled, three panels will appear at "misc" panel of the sidebar (press "N" to show the sidebar).
+After Batch Process add-on enabled, three panels will appear at "misc" panel of the sidebar (press "N" to show the sidebar).
 
 ![panels_title.png](image/panels_title.png)
 
-### Batch Assign Main Panel
+### Batch Process Main Panel
 
-### Batch Assign Preset Panel
+### Batch Process Preset Panel
 
-### Batch Assign Settings Panel
+### Batch Process Settings Panel
 
 ## ERNA Syntax Reference
 
@@ -221,7 +260,7 @@ This operation will not change *collection*.
 | data     | value of *data*              |
 | prop     | value of *data*`.<name>`     |
 
-### Global Variables
+### *global space*
 All python expression `<expr>` may access global variables in following table.
 
 | Variables      |    |           |
@@ -250,7 +289,7 @@ op_delay -> "\" t_expr
 ## Preset File
 A preset file is just a plain text file which save multiple ERNA with keys.
 It is saved as text data so you may edit it with blender text editor or append it across blender files.
-The Batch Assign Preset Panel is used to load preset file and set ERNA to Batch Assign Main Panel.
+The Batch Process Preset Panel is used to load preset file and set ERNA to Batch Process Main Panel.
 A preset file has a simple line based syntax showing bellow.
 
 ```

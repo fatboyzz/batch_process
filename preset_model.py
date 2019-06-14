@@ -40,7 +40,7 @@ class PresetErrorKeyAlreadyExist(PresetErrorLine):
 
 @register_class
 @model("batch_assign_preset_model")
-class BatchAssign_PresetModel(bpy.types.PropertyGroup):
+class BatchProcess_PresetModel(bpy.types.PropertyGroup):
     preset_error : StringProperty(
         name = "Preset Error",
         default = "",

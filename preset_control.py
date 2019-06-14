@@ -66,14 +66,14 @@ class Preset:
 
 
 @singleton
-class BatchAssign_PresetControl:
+class BatchProcess_PresetControl:
     def __init__(self):
         self.preset = None
         self.preset_file_loaded = None
         self.preset_key_loaded = None
 
     def load_file(self, file):
-        model = BatchAssign_PresetModel.get()
+        model = BatchProcess_PresetModel.get()
         model.preset_error = ""
         model.unexpected_error = ""
         
@@ -85,8 +85,8 @@ class BatchAssign_PresetControl:
             self.preset_file_loaded = file
 
         except Exception as error:
-            settings = BatchAssign_SettingsModel.get()
-            model = BatchAssign_PresetModel.get()
+            settings = BatchProcess_SettingsModel.get()
+            model = BatchProcess_PresetModel.get()
 
             if settings.enable_debug_information:
                 print_traceback_and_set_clipboard()
@@ -101,7 +101,7 @@ class BatchAssign_PresetControl:
     def load_key(self, key):
         with MainModelChangeContext():
             self.preset_key_loaded = None
-            model = BatchAssign_MainModel.get()
+            model = BatchProcess_MainModel.get()
 
             ernas = self.preset.datas[key]
             model.erna_count = len(ernas)
@@ -118,7 +118,7 @@ class BatchAssign_PresetControl:
         if text is None: return
 
         lines = [ "# ERNA", "ERNA" ]
-        lines.extend([model.erna for model in BatchAssign_MainModel.get().ernas])
+        lines.extend([model.erna for model in BatchProcess_MainModel.get().ernas])
         lines.append("")
         
         text.write("\n".join(lines))
