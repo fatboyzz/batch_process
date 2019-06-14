@@ -1,12 +1,13 @@
 # Batch Assign - Batch Assign Multiple Properties With ERNA Syntax
 
 ## Why Batch Assign add-on
-Sometimes we want to set multiple properties with some simple rules.
-
+Sometimes we want to set properties or do some job with simple rules.
 These rules include
 
-- Renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
-- Renaming all bones of an armature from "bone_left" to "bone.L".
+- Rename selected objects into "obj_000", "obj_001", ... sorted by their x position.
+- Rename bones from "leg left thigh" to "leg___thigh.L" and "leg right thigh" to "leg___thigh.R"..
+- Import "*.obj" files in folder "obj" (reletive to current blend file).
+- Reload all images used by selected objects' materials
 
 Batch Assign add-on helps you get these jobs done with one string instead of
 
@@ -20,22 +21,31 @@ Batch Assign add-on helps you get these jobs done with one string instead of
 - You should be comfortable with python documentation and blender python api documentation.
 - Beta Version
 
+## Installation
+1. Download the Batch Assign add-on source code somewhere.
+2. Copy folder `batch_assign` into *`<your blender path>/2.8/scripts/addons_contrib/`*.
+3. Open blender click *Edit->Preferences->Add-ons* and enable *Testing* support level.
+4. Search *Batch Assign* and enable it.
+
 ## How it works
+
+### Concepts
 The one string you input is called a ERNA(Extended RNA Data Path).
 Just like RNA in blender is used to get one property of one object.
 ERNA is used to get multiple properties of multiple objects.
 We call these bunch of objects a *collection*. 
 Each one of these objects itself is called *data* of *collection*.
 ERNA is the rule of Transforming from one *collection* into another *collection*.
-Here is the full ERNA for renaming selected objects into "obj_000", "obj_001", ... sorted by their x position.
 
+### A Simple Example
 ```
+# Rename selected objects into "obj_000", "obj_001", ... sorted by their x position.
 !$bpy.context.selected_objects$@$data.location.x$=name$"obj_{0:03}".format(index)$
 ```
 
 This long ERNA can be seperated by parts and each part is indicating a *collection* Transform.
 Each ERNA Part is just a shorter ERNA.
-The following steps show how the add-on interpret this ERNA
+The following steps show each part and how this add-on interpret them.
 
 1. `!$bpy.context.selected_objects$` **Initial Operation** `[<obj_c>, <obj_b>, <obj_a>]`
 
@@ -55,11 +65,9 @@ The following steps show how the add-on interpret this ERNA
     Assign Operation will not change *collection* but store the assign information.
     The actual assignment is done later when user click assign button.
 
-## Installation
-1. Download the Batch Assign add-on source code somewhere.
-2. Copy folder `batch_assign` into *`<your blender path>/2.8/scripts/addons_contrib/`*.
-3. Open blender click *Edit->Preferences->Add-ons* and enable *Testing* support level.
-4. Search *Batch Assign* and enable it.
+### Another Example With Binding Variables
+
+
 
 ## User Interface
 After Batch Assign add-on enabled, three panels will appear at "misc" panel of the sidebar (press "N" to show the sidebar).
@@ -176,9 +184,12 @@ Take *data* in *collection* with python slice similar syntax.
 ### Variable Operation
 ```
 %$<expr>$
+%%$<expr>$
 ```
-Introduce new local variables to *data*.
-`<expr>` is any valid python expression with following local variables
+`%$<expr>$` Introduce new local variables bind to *data*.
+`%%$<expr>$` Introduce new global variables bind to *collection*.
+
+`<expr>` is a python expression with following local variables
 
 | Variable | Value                        |
 |----------|------------------------------|
@@ -186,12 +197,12 @@ Introduce new local variables to *data*.
 | index    | index of *data* start from 0 |
 | data     | value of *data*              |
 
-The return value of `<expr>` is a dict which is used to introduce new local variables to *data*.
+The return value of `<expr>` is a dict which is used to introduce new variables.
 This operation will not change *collection*.
 
 | *collection*       | ERNA                         | *collection* Transformed               |
 |--------------------|------------------------------|----------------------------------------|
-| `[data_0, data_1]` | `%${"i":index, "l":length}$` | `[data_0{i:0, l:2}, item_1{i:1, l:2}]` |
+| `[data_0, data_1]` | `%${"i":index, "l":length}$` | `[data_0{i:0, l:2}, data_1{i:1, l:2}]` |
 
 
 ### Assign Operation

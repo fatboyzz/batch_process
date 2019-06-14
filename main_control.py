@@ -262,9 +262,10 @@ class Context:
     def extend_ls(self, ls_ext):
         return Context(self.data, ChainMap(ls_ext, self.ls))
 
-    def eval(self, expr_index, expr):
+    def eval(self, gs, ls, expr_value):
         try:
-            return eval(expr, Expression_Globals, self.ls)
+            expr_index, expr = expr_value
+            return eval(expr, gs, ChainMap(self.ls, ls))
         except SyntaxError as error:
             raise ERNAErrorIndex(expr_index + error.offset, error.msg)
         except Exception as error:
@@ -272,23 +273,17 @@ class Context:
 
 
 Assignment = namedtuple("Assignment", ["prop", "datas", "values"])
-Delay = namedtuple("Delay", ["expr_index", "expr", "context"])
+Delay = namedtuple("Delay", ["gs", "ls", "expr_value"])
 
 
 class Collection:
     def __init__(self, contexts):
         if len(contexts) == 0:
             raise CollectionErrorEmpty()
+        self.gs = Expression_Globals
         self.contexts = contexts
         self.assignments = []
         self.delays = []
-
-        self.assign_property = ""
-        self.assign_datas = []
-        self.assign_values = []
-
-    def has_assign(self) -> bool:
-        return len(self.assign_property) > 0
 
     def accessable_properties(self):
         data = self.contexts[0].data
@@ -347,15 +342,14 @@ class Collection:
                 "index" : index,
                 "data" : data,
             }
-            context_ext = context.extend_ls(ls_ext)
-            data_new = context_ext.eval(*value)
+            data_new = context.eval(self.gs, ls_ext, value)
             context_new = Context(data_new, ls)
             contexts_new.append(context_new)
 
         self.contexts = contexts_new
 
     def transform_op_init(self, value):
-        data = Context(None, Expression_Globals).eval(*value)
+        data = Context(None).eval(self.gs, {}, value)
 
         if not hasattr(data, "__iter__"):
                 raise CollectionErrorNoIter(data)
@@ -388,9 +382,8 @@ class Collection:
                         "index_item" : index_item,
                         "item" : item,
                     }
-                    context_item = Context(item, ls) 
-                    context_ext = context_item.extend_ls(ls_ext)
-                    ls_new = context_ext.eval(*value)
+                    context_item = Context(item, ls)
+                    ls_new = context_item.eval(self.gs, ls_ext, value)
                     context_new = context_item.extend_ls(ls_new)
                     contexts_new.append(context_new)
 
@@ -400,8 +393,8 @@ class Collection:
         length = len(self.contexts)
 
         def sort_key(context):
-            ls_ext = {"data": context.data, "length": length}
-            return context.extend_ls(ls_ext).eval(*value)
+            ls_ext = {"length": length, "data": context.data}
+            return context.eval(self.gs, ls_ext, value)
         
         if value is None:
             self.contexts.sort()
@@ -414,11 +407,11 @@ class Collection:
 
         for index, context in enumerate(self.contexts):
             ls_ext = {
-                "data" : context.data,
-                "index" : index,
                 "length" : length,
+                "index" : index,
+                "data" : context.data,
             }
-            if context.extend_ls(ls_ext).eval(*value):
+            if context.eval(self.gs, ls_ext, value):
                 contexts_new.append(context)
 
         if len(contexts_new) == 0:
@@ -438,12 +431,11 @@ class Collection:
 
         for index, context in enumerate(self.contexts):
             ls_ext = {
-                "data" : context.data,
-                "index" : index,
                 "length" : length,
+                "index" : index,
+                "data" : context.data,
             }
-            context_ext = context.extend_ls(ls_ext)
-            ls_new = context_ext.eval(*value)
+            ls_new = context.eval(self.gs, ls_ext, value)
             contexts_new.append(context.extend_ls(ls_new))
 
         self.contexts = contexts_new
@@ -457,8 +449,7 @@ class Collection:
             assign_data = context.data
             assignment.datas.append(assign_data)
 
-            prop_context = context.access_property(name)
-            prop_data = prop_context.data
+            prop_data = context.access_property(name).data
 
             ls_ext = {
                 "length": length,
@@ -466,8 +457,7 @@ class Collection:
                 "data": assign_data, 
                 "prop" : prop_data,
             }
-            context_ext = prop_context.extend_ls(ls_ext)
-            assign_value = context_ext.eval(expr_index, expr)
+            assign_value = context.eval(self.gs, ls_ext, (expr_index, expr))
 
             expect, actual = type(prop_data), type(assign_value)
             if expect != actual:
@@ -487,8 +477,7 @@ class Collection:
                 "index": index, 
                 "data": context.data, 
             }
-            context_ext = context.extend_ls(ls_ext)
-            delay = Delay(expr_index, expr, context_ext)
+            delay = Delay(self.gs, ChainMap(context.ls, ls_ext), (expr_index, expr))
             self.delays.append(delay)
 
     def assign(self):
@@ -499,7 +488,7 @@ class Collection:
                     setattr(data, prop, value)
 
             for delay in self.delays:
-                delay.context.eval(delay.expr_index, delay.expr)
+                eval(delay.expr_value.expr, delay.gs, delay.ls)
 
         except Exception as error:
             raise AssignError(error)
