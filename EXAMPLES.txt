@@ -14,8 +14,8 @@ Rename_Bones_Append_LR
 |$is_left or is_right$
 =name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$
 
-## Note : If you set Armature Modifier properly, changing bones name will automatically change corresponding name of vertex groups
 ## Rename bones from "leg___thigh.L" to "leg left thigh" and "leg___thigh.R" to "leg right thigh".
+## Note : If you set Armature Modifier properly, changing bones name will automatically change corresponding name of vertex groups
 Rename_Bones_Trim_LR
 !$bpy.context.selected_objects$data.bones*
 %${"left" : " left ", "right" : " right ", "holder" : "___"}$

@@ -75,13 +75,12 @@ The following steps show each part and how this add-on interpret them.
 =name$prop.replace(left if is_left else right, holder) + (".L" if is_left else ".R")$
 ```
 You may bind new variables into namespaces with ERNA.
-There are three namespaces when interpreting a ERNA. 
+There are two namespaces when interpreting a ERNA. 
 
-| space              | description                                                                                         |
-|--------------------|-----------------------------------------------------------------------------------------------------|
-| *builtin space*    | accessable everywhere, you can't change this space during processing, mainly contain python modules |
-| *collection space* | one during ERNA processing, mainly contain settings at begining for ERNA                            |
-| *data space*       | one for each *data*, change with some operation                                                     |
+| space           | description                                                                                         |
+|-----------------|-----------------------------------------------------------------------------------------------------|
+| *builtin space* | accessable everywhere, you can't change this space during processing, mainly contain python modules |
+| *data space*    | one for each *data*, change by *Variable Operation*                                                 |
 
 Interpret Steps
 1. `!$bpy.context.selected_objects$data.bones*` *Multiple Operations* `[<leg left thigh>, <leg right thigh>, <pelvis>]`
@@ -91,8 +90,8 @@ Interpret Steps
 
 2. `%${"left" : " left ", "right" : " right ", "holder" : "___"}$` *Variable Operation*
 
-    Introduce new variables into *collection space*.
-    Change these values to change the behavior of this ERNA.
+    Introduce some common variables.
+    Change these values will change the behavior of this ERNA.
 
 3. `%${"is_left" : left in data.name, "is_right" : right in data.name}$` *Variable Operation*
 
@@ -146,7 +145,8 @@ Access each *Item* inside *data* as result *collection*, *data* must have `__ite
 | `[[item_0_0, item_0_1], [item_1_0, item_1_1]]` | `*`  | `[item_0_0, item_0_1, item_1_0, item_1_1]` |
 
 If `<expr>` is not provided, no new local variables introduced.
-If `<expr>` is provided, it is a valid python expression with following local variables.
+
+If `<expr>` is provided, it is a python expression with following local variables.
 
 | Variable    | Value                        |
 |-------------|------------------------------|
@@ -166,16 +166,21 @@ The value of `<expr>` is a dict which is used to introduce new local variables t
 
 ### Sort Operation
 ```
+@
 @$<expr>$
 ```
-Stable sort *collection* with the value of `<expr>` as key.
+Stable sort *collection* 
 
-`<expr>` is any valid python expression with following local variables
+if `<expr>` is not provided, sort by *data* as key.
+
+if `<expr>` is provided,  it is a python expression with following local variables
 
 | Variable | Value                  |
 |----------|------------------------|
-| data     | value of *data*        |
 | length   | length of *collection* |
+| data     | value of *data*        |
+
+The value of `expr` is used as the sort key.
 
 Suppose we have `data_0.name == "c" and data_1.name == "b" and data_2.name == "a"`
 
@@ -193,9 +198,9 @@ Filter *collection* with the value of `<expr>`.
 
 | Variable | Value                        |
 |----------|------------------------------|
-| data     | value of *data*              |
-| index    | index of *data* start from 0 |
 | length   | length of *collection*       |
+| index    | index of *data* start from 0 |
+| data     | value of *data*              |
 
 The value of `<expr>` is a bool which test whether the *data* exist in result *collection*.
 
@@ -223,10 +228,8 @@ Take *data* in *collection* with python slice similar syntax.
 ### Variable Operation
 ```
 %$<expr>$
-%%$<expr>$
 ```
-`%$<expr>$` Introduce new local variables bind to *data*.
-`%%$<expr>$` Introduce new global variables bind to *collection*.
+`%$<expr>$` Introduce new variables to *data space*.
 
 `<expr>` is a python expression with following local variables
 

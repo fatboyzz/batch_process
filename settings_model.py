@@ -9,7 +9,7 @@ register_classes = []
 
 @register_class
 @model("batch_assign_settings_model")
-class BatchProcess_SettingsModel(bpy.types.PropertyGroup):
+class BATCH_PROCESS_SettingsModel(bpy.types.PropertyGroup):
     enable_debug_information : BoolProperty(
         name = "Enable Debug Information",
         default = False,

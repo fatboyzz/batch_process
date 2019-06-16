@@ -262,10 +262,10 @@ class Context:
     def extend_ls(self, ls_ext):
         return Context(self.data, ChainMap(ls_ext, self.ls))
 
-    def eval(self, gs, ls, expr_value):
+    def eval(self, ls, expr_value):
         try:
             expr_index, expr = expr_value
-            return eval(expr, gs, ChainMap(self.ls, ls))
+            return eval(expr, Expression_Globals, ChainMap(ls, self.ls))
         except SyntaxError as error:
             raise ERNAErrorIndex(expr_index + error.offset, error.msg)
         except Exception as error:
@@ -280,7 +280,6 @@ class Collection:
     def __init__(self, contexts):
         if len(contexts) == 0:
             raise CollectionErrorEmpty()
-        self.gs = Expression_Globals
         self.contexts = contexts
         self.assignments = []
         self.delays = []
@@ -288,7 +287,7 @@ class Collection:
     def accessable_properties(self):
         data = self.contexts[0].data
         props = sorted(dir(data))
-        settings = BatchProcess_SettingsModel.get()
+        settings = BATCH_PROCESS_SettingsModel.get()
 
         if not settings.enable_python_reserved_property:
             props = [
@@ -342,14 +341,14 @@ class Collection:
                 "index" : index,
                 "data" : data,
             }
-            data_new = context.eval(self.gs, ls_ext, value)
+            data_new = context.eval(ls_ext, value)
             context_new = Context(data_new, ls)
             contexts_new.append(context_new)
 
         self.contexts = contexts_new
 
     def transform_op_init(self, value):
-        data = Context(None).eval(self.gs, {}, value)
+        data = Context(None).eval({}, value)
 
         if not hasattr(data, "__iter__"):
                 raise CollectionErrorNoIter(data)
@@ -383,7 +382,7 @@ class Collection:
                         "item" : item,
                     }
                     context_item = Context(item, ls)
-                    ls_new = context_item.eval(self.gs, ls_ext, value)
+                    ls_new = context_item.eval(ls_ext, value)
                     context_new = context_item.extend_ls(ls_new)
                     contexts_new.append(context_new)
 
@@ -394,7 +393,7 @@ class Collection:
 
         def sort_key(context):
             ls_ext = {"length": length, "data": context.data}
-            return context.eval(self.gs, ls_ext, value)
+            return context.eval(ls_ext, value)
         
         if value is None:
             self.contexts.sort()
@@ -411,7 +410,7 @@ class Collection:
                 "index" : index,
                 "data" : context.data,
             }
-            if context.eval(self.gs, ls_ext, value):
+            if context.eval(ls_ext, value):
                 contexts_new.append(context)
 
         if len(contexts_new) == 0:
@@ -435,7 +434,7 @@ class Collection:
                 "index" : index,
                 "data" : context.data,
             }
-            ls_new = context.eval(self.gs, ls_ext, value)
+            ls_new = context.eval(ls_ext, value)
             contexts_new.append(context.extend_ls(ls_new))
 
         self.contexts = contexts_new
@@ -457,7 +456,7 @@ class Collection:
                 "data": assign_data, 
                 "prop" : prop_data,
             }
-            assign_value = context.eval(self.gs, ls_ext, (expr_index, expr))
+            assign_value = context.eval(ls_ext, (expr_index, expr))
 
             expect, actual = type(prop_data), type(assign_value)
             if expect != actual:
@@ -477,7 +476,7 @@ class Collection:
                 "index": index, 
                 "data": context.data, 
             }
-            delay = Delay(self.gs, ChainMap(context.ls, ls_ext), (expr_index, expr))
+            delay = Delay(ChainMap(ls_ext, context.ls), (expr_index, expr))
             self.delays.append(delay)
 
     def assign(self):
@@ -495,9 +494,9 @@ class Collection:
 
 
 @singleton
-class BatchProcess_MainControl:
+class BATCH_PROCESS_MainControl:
     def __init__(self):
-        self.collections = None
+        self.collections = []
 
     def insert_erna(self, index):
         with MainModelChangeContext() as model:
@@ -512,26 +511,7 @@ class BatchProcess_MainControl:
             model.ernas.remove(index)
 
     def update(self):
-        self.update_model()
-
-    def assign(self):
-        model = BatchProcess_MainModel.get()
-        model.assign_error = ""
-
-        try:
-            for collection in self.collections:
-                collection.assign()
-
-        except AssignError as error:
-            settings = BatchProcess_SettingsModel.get()
-
-            if settings.enable_debug_information:
-                print_traceback_and_set_clipboard()
-
-            model.assign_error = str(error)
-
-    def update_model(self):
-        model = BatchProcess_MainModel.get()
+        model = BATCH_PROCESS_MainModel.get()
         erna_count = len(model.ernas)
 
         if erna_count < model.erna_count:
@@ -544,8 +524,24 @@ class BatchProcess_MainControl:
 
         self.update_collections()
 
+    def assign(self):
+        model = BATCH_PROCESS_MainModel.get()
+        model.assign_error = ""
+
+        try:
+            for collection in self.collections:
+                collection.assign()
+
+        except AssignError as error:
+            settings = BATCH_PROCESS_SettingsModel.get()
+
+            if settings.enable_debug_information:
+                print_traceback_and_set_clipboard()
+
+            model.assign_error = str(error)
+
     def update_collections(self):
-        model = BatchProcess_MainModel.get()
+        model = BATCH_PROCESS_MainModel.get()
         erna_count = len(model.ernas)
         self.collections = [None] * erna_count
 
@@ -554,7 +550,7 @@ class BatchProcess_MainControl:
             self.update_collection()
 
     def erna_model(self):
-        return BatchProcess_MainModel.get().ernas[self.index]
+        return BATCH_PROCESS_MainModel.get().ernas[self.index]
 
     def clear_errors(self):
         model = self.erna_model()
@@ -589,7 +585,7 @@ class BatchProcess_MainControl:
             self.handle_errors(error)
 
     def handle_errors(self, error):
-        settings = BatchProcess_SettingsModel.get()
+        settings = BATCH_PROCESS_SettingsModel.get()
         model = self.erna_model()
 
         if settings.enable_debug_information:

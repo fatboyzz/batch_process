@@ -1,0 +1,2 @@
+## ERNA in this file is used for ERNA Syntax Testing
+

@@ -3,27 +3,27 @@ from .utils import *
 from .main_control import *
 
 @register_class
-class BatchProcess_OP_MainControlUpdate(bpy.types.Operator):
+class BATCH_PROCESS_OP_MainControlUpdate(bpy.types.Operator):
     bl_idname = "batch_process.main_control_update"
     bl_label = "Update Collection"
     bl_description = "Update Collection"
 
     def execute(self, context):
-        BatchProcess_MainControl.get().update()
+        BATCH_PROCESS_MainControl.get().update()
         return {'FINISHED'}
 
 @register_class
-class BatchProcess_OP_MainControlAssign(bpy.types.Operator):
+class BATCH_PROCESS_OP_MainControlAssign(bpy.types.Operator):
     bl_idname = "batch_process.main_control_assign"
     bl_label = "Assign Value"
     bl_description = "Assign Value"
     
     def execute(self, context):
-        BatchProcess_MainControl.get().assign()
+        BATCH_PROCESS_MainControl.get().assign()
         return {'FINISHED'}
 
 @register_class
-class BatchProcess_OP_MainControlInsertERNA(bpy.types.Operator):
+class BATCH_PROCESS_OP_MainControlInsertERNA(bpy.types.Operator):
     bl_idname = "batch_process.main_control_insert_erna"
     bl_label = "Insert ERNA"
     bl_description = "Insert ERNA"
@@ -34,11 +34,11 @@ class BatchProcess_OP_MainControlInsertERNA(bpy.types.Operator):
     )
 
     def execute(self, context):
-        BatchProcess_MainControl.get().insert_erna(self.index)
+        BATCH_PROCESS_MainControl.get().insert_erna(self.index)
         return {'FINISHED'}
 
 @register_class
-class BatchProcess_OP_MainControlRemoveERNA(bpy.types.Operator):
+class BATCH_PROCESS_OP_MainControlRemoveERNA(bpy.types.Operator):
     bl_idname = "batch_process.main_control_remove_erna"
     bl_label = "Remove ERNA"
     bl_description = "Remove ERNA"
@@ -49,12 +49,12 @@ class BatchProcess_OP_MainControlRemoveERNA(bpy.types.Operator):
     )
 
     def execute(self, context):
-        BatchProcess_MainControl.get().remove_erna(self.index)
+        BATCH_PROCESS_MainControl.get().remove_erna(self.index)
         return {'FINISHED'}
     
 @register_class
-class BatchProcess_PT_MainPanel(bpy.types.Panel):
-    bl_idname = "BatchProcess_PT_MainPanel"
+class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
+    bl_idname = "BATCH_PROCESS_PT_MainPanel"
     bl_label = "Batch Process Main"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -74,11 +74,11 @@ class BatchProcess_PT_MainPanel(bpy.types.Panel):
     def draw_update_button(self):
         layout = self.layout
         layout.operator(
-            BatchProcess_OP_MainControlUpdate.bl_idname,
+            BATCH_PROCESS_OP_MainControlUpdate.bl_idname,
             text = "Update",
         )
 
-        control = BatchProcess_MainControl.get()
+        control = BATCH_PROCESS_MainControl.get()
         if control.collections is None:
             self.draw_error(layout, "Click Update To Start")
         else:
@@ -86,15 +86,15 @@ class BatchProcess_PT_MainPanel(bpy.types.Panel):
 
     def draw_erna_count(self):
         self.layout.prop(
-            data = BatchProcess_MainModel.get(),
+            data = BATCH_PROCESS_MainModel.get(),
             property = "erna_count",
         )
 
         self.draw_ernas()
 
     def draw_ernas(self):
-        control = BatchProcess_MainControl.get()
-        model = BatchProcess_MainModel.get()
+        control = BATCH_PROCESS_MainControl.get()
+        model = BATCH_PROCESS_MainModel.get()
 
         for index in range(model.erna_count):
             self.index = index
@@ -106,10 +106,10 @@ class BatchProcess_PT_MainPanel(bpy.types.Panel):
         self.draw_assign_button()
 
     def draw_assign_button(self):
-        model = BatchProcess_MainModel.get()
+        model = BATCH_PROCESS_MainModel.get()
 
         self.layout.operator(
-            BatchProcess_OP_MainControlAssign.bl_idname,
+            BATCH_PROCESS_OP_MainControlAssign.bl_idname,
             text = "Assign",
         )
 
@@ -125,13 +125,13 @@ class BatchProcess_PT_MainPanel(bpy.types.Panel):
 
         toggle = model.enable_collection_preview
         layout_row.operator(
-            BatchProcess_OP_MainControlInsertERNA.bl_idname,
+            BATCH_PROCESS_OP_MainControlInsertERNA.bl_idname,
             text = "",
             icon = "ADD",
         ).index = self.index
 
         layout_row.operator(
-            BatchProcess_OP_MainControlRemoveERNA.bl_idname,
+            BATCH_PROCESS_OP_MainControlRemoveERNA.bl_idname,
             text = "",
             icon = "REMOVE",
         ).index = self.index

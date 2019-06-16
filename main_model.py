@@ -71,27 +71,27 @@ class AssignError(Exception):
 
 
 def main_model_update(self, context):
-    settings = BatchProcess_SettingsModel.get()
+    settings = BATCH_PROCESS_SettingsModel.get()
     if settings.enable_update_when_erna_changed:
         bpy.ops.batch_process.main_control_update()
 
 
 class MainModelChangeContext:
     def __enter__(self):
-        settings = BatchProcess_SettingsModel.get()
+        settings = BATCH_PROCESS_SettingsModel.get()
         self.old = settings.enable_update_when_erna_changed
         settings.enable_update_when_erna_changed = False
-        model = BatchProcess_MainModel.get()
+        model = BATCH_PROCESS_MainModel.get()
         return model
 
     def __exit__(self, exc_type, exc_value, traceback):
-        settings = BatchProcess_SettingsModel.get()
+        settings = BATCH_PROCESS_SettingsModel.get()
         settings.enable_update_when_erna_changed = self.old
         main_model_update(None, None)
 
 
 @register_class
-class BatchProcess_MainERNAModel(bpy.types.PropertyGroup):
+class BATCH_PROCESS_MainERNAModel(bpy.types.PropertyGroup):
     erna : StringProperty(
         name = "ERNA",
         description = "ERNA Data Path",
@@ -137,18 +137,18 @@ class BatchProcess_MainERNAModel(bpy.types.PropertyGroup):
 
 @register_class
 @model("batch_assign_main_model")
-class BatchProcess_MainModel(bpy.types.PropertyGroup):
+class BATCH_PROCESS_MainModel(bpy.types.PropertyGroup):
     erna_count : IntProperty(
         name = "ERNA Count",
         description = "ERNA Count",
-        default = 2,
+        default = 0,
         min = 1,
         max = 16,
         update = main_model_update,
     )
 
     ernas : CollectionProperty(
-        type = BatchProcess_MainERNAModel
+        type = BATCH_PROCESS_MainERNAModel
     )
 
     assign_error : StringProperty(
