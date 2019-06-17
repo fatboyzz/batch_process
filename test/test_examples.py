@@ -5,6 +5,9 @@ class TestExample(unittest.TestCase):
     def setUp(self):
         self.bp = bpy.ops.batch_process
         self.bp.preset_control_load_file(file = "EXAMPLES.txt")
+
+    def tearDown(self):
+        self.bp.preset_control_load_file(file = "run_test.py")
     
     def set_scene(self, name):
         bpy.context.window.scene = bpy.data.scenes[name]
@@ -15,7 +18,7 @@ class TestExample(unittest.TestCase):
         self.bp.main_control_assign()
 
     def test_Rename_Objects_Sort_By_X(self):
-        self.set_scene("test_Rename_Objects_Sort_By_X")
+        self.set_scene("EXAMPLES_Rename_Objects_Sort_By_X")
 
         A, B, C = (bpy.data.objects[name] for name in ["A", "B", "C"])
         
@@ -26,7 +29,7 @@ class TestExample(unittest.TestCase):
         self.assertEqual(C.name, "obj_000")
 
     def test_Rename_Bones(self):
-        self.set_scene("test_Rename_Bones")
+        self.set_scene("EXAMPLES_Rename_Bones")
 
         Armature = bpy.data.objects["Armature"]
         BONES = Armature.data.bones
@@ -47,7 +50,7 @@ class TestExample(unittest.TestCase):
         self.assertEqual(RIGHT.name, "leg right thigh")
 
     def test_Rename_Materials_With_Object_Name(self):
-        self.set_scene("test_Rename_Materials_With_Object_Name")
+        self.set_scene("EXAMPLES_Rename_Materials_With_Object_Name")
 
         CUBE = bpy.data.objects["CUBE"]
         M00, M01, M02 = (slot.material for slot in CUBE.material_slots)

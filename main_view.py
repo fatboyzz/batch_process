@@ -96,6 +96,10 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
         control = BATCH_PROCESS_MainControl.get()
         model = BATCH_PROCESS_MainModel.get()
 
+        if model.erna_count != len(control.collections):
+            self.draw_error(self.layout, "Click Update To Start")
+            return
+
         for index in range(model.erna_count):
             self.index = index
             self.layout_erna = self.layout.box()
@@ -103,14 +107,14 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
             self.collection = control.collections[index]
             self.draw_erna()
 
-        self.draw_assign_button()
+        self.draw_process_button()
 
-    def draw_assign_button(self):
+    def draw_process_button(self):
         model = BATCH_PROCESS_MainModel.get()
 
         self.layout.operator(
             BATCH_PROCESS_OP_MainControlAssign.bl_idname,
-            text = "Assign",
+            text = "Process",
         )
 
         error = model.assign_error
@@ -123,7 +127,6 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
         layout_row = layout.row(align = True)
         layout_row.label(text = "ERNA {0}:".format(self.index))
 
-        toggle = model.enable_collection_preview
         layout_row.operator(
             BATCH_PROCESS_OP_MainControlInsertERNA.bl_idname,
             text = "",
@@ -136,11 +139,20 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
             icon = "REMOVE",
         ).index = self.index
 
+        toggle = model.enable_data_preview
         layout_row.prop(
             data = model,
-            property = "enable_collection_preview",
+            property = "enable_data_preview",
             text = "",
             icon = "HIDE_OFF" if toggle else "HIDE_ON",
+        )
+
+        toggle = model.enable_variable_preview
+        layout_row.prop(
+            data = model,
+            property = "enable_variable_preview",
+            text = "",
+            icon = "RESTRICT_VIEW_OFF" if toggle else "RESTRICT_VIEW_ON",
         )
 
         toggle = model.enable_assignment_preview
@@ -190,17 +202,16 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
         error = model.collection_error
         if self.draw_error(layout, error): return
 
-        if model.enable_collection_preview:
-            self.draw_collection_preview()
+        self.draw_context_preview()
+        self.draw_assignment_preview()
+        self.draw_accessable_property()
 
-        if model.enable_assignment_preview:
-            self.draw_assignment_preview()
+    def draw_context_preview(self):
+        model = self.model_erna
+        data_preview = model.enable_data_preview
+        variable_preview = model.enable_variable_preview
+        if not data_preview and not variable_preview: return
 
-        if model.enable_accessable_property:
-            self.draw_accessable_property()
-
-
-    def draw_collection_preview(self):
         collection = self.collection
         if len(collection.contexts) == 0: return
 
@@ -208,10 +219,18 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
         layout_column = layout.column(align = True)
 
         for context in collection.contexts:
-            layout_column.label(text = str(context.data))
+            text = ""
+            if data_preview:
+                text += str(context.data)
+            if variable_preview:
+                text += str(context.ls)
+
+            layout_column.label(text = text)
 
 
     def draw_assignment_preview(self):
+        if not self.model_erna.enable_assignment_preview: return
+
         collection = self.collection
         assignments = collection.assignments
         if len(assignments) == 0: return
@@ -238,6 +257,8 @@ class BATCH_PROCESS_PT_MainPanel(bpy.types.Panel):
     
 
     def draw_accessable_property(self):
+        if not self.model_erna.enable_accessable_property: return
+
         collection = self.collection
         props = collection.accessable_properties()
         if len(props) == 0: return

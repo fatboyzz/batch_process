@@ -211,11 +211,15 @@ class ERNAParser:
         self.match_symbol("[")
 
         start, stop, step = None, None, None
-        start = int(self.match_token(ERNALexer.t_number).t_string)
+
+        if self.is_token(ERNALexer.t_number):
+            start = int(self.match_token(ERNALexer.t_number).t_string)
 
         self.match_symbol(":")
-        stop = int(self.match_token(ERNALexer.t_number).t_string)
 
+        if self.is_token(ERNALexer.t_number):
+            stop = int(self.match_token(ERNALexer.t_number).t_string)
+    
         if self.is_symbol(":"):
             self.next()
             step = int(self.match_token(ERNALexer.t_number).t_string)
@@ -258,9 +262,6 @@ class Context:
             if data == None:
                 raise CollectionErrorProperty(prop)
         return Context(data, self.ls)
-
-    def extend_ls(self, ls_ext):
-        return Context(self.data, ChainMap(ls_ext, self.ls))
 
     def eval(self, ls, expr_value):
         try:
@@ -335,14 +336,13 @@ class Collection:
         length = len(self.contexts)
 
         for index, context in enumerate(self.contexts):
-            data, ls = context.data, context.ls
             ls_ext = {
                 "length" : length,
                 "index" : index,
-                "data" : data,
+                "data" : context.data,
             }
             data_new = context.eval(ls_ext, value)
-            context_new = Context(data_new, ls)
+            context_new = Context(data_new, context.ls)
             contexts_new.append(context_new)
 
         self.contexts = contexts_new
@@ -383,8 +383,8 @@ class Collection:
                     }
                     context_item = Context(item, ls)
                     ls_new = context_item.eval(ls_ext, value)
-                    context_new = context_item.extend_ls(ls_new)
-                    contexts_new.append(context_new)
+                    context_item.ls = {**context_item.ls, **ls_new}
+                    contexts_new.append(context_item)
 
         self.contexts = contexts_new
 
@@ -435,7 +435,8 @@ class Collection:
                 "data" : context.data,
             }
             ls_new = context.eval(ls_ext, value)
-            contexts_new.append(context.extend_ls(ls_new))
+            context.ls = {**context.ls, **ls_new}
+            contexts_new.append(context)
 
         self.contexts = contexts_new
 

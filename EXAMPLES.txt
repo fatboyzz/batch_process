@@ -49,6 +49,7 @@ material_slots*${"mat_index" : index_item}$material
 
 
 ## Reload all images used by selected objects' materials
+Reload_All_Images_Of_Materials
 !$bpy.context.selected_objects$
 data.materials*node_tree.nodes*
 |$data.bl_idname == "ShaderNodeTexImage"$.image

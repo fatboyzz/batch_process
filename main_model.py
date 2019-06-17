@@ -99,9 +99,14 @@ class BATCH_PROCESS_MainERNAModel(bpy.types.PropertyGroup):
         update = main_model_update,
     )
 
-    enable_collection_preview : BoolProperty(
-        description = "Enable Collection Preview",
-        default = True,
+    enable_data_preview : BoolProperty(
+        description = "Enable Data Preview",
+        default = False,
+    )
+
+    enable_variable_preview : BoolProperty(
+        description = "Enable Variable Preview",
+        default = False,
     )
 
     enable_assignment_preview: BoolProperty(
