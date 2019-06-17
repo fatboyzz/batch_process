@@ -100,8 +100,8 @@ Interpret Steps
 
 2. `data.bones` -> `[[<leg left thigh>, <leg right thigh>, <pelvis>]]`
 
-    `name.name.name.name` is the syntax of *Property Operation*.
-    Access each *data*'s `name.name.name.name` property as result *collection*.
+    `name.name.name` is the syntax of *Property Operation*.
+    Access each *data*'s `name.name.name` property as result *collection*.
     Here we access `data.bones` of `Armature` so we got bones.
     Now our *collection* have one *data* and the *data* contains all bones of selected armature.
 
@@ -181,7 +181,7 @@ For each *data* access property `<name>.<name>.<name>` then put into result *col
 
 ### Map Operation
 ```
--$<expr>$
+$<expr>$
 ```
 For each *data* put the value of `<expr>` into result *collection*.
 `<expr>` is a python expression with following local variables.
@@ -343,15 +343,15 @@ you have to manually change `Expression_Globals` in source code file `globals_mo
 
 ### ERNA Grammar Specification
 ```
-erna -> op* t_stop
+erna -> t_start op* t_stop
 op -> one of op_???
-op_prop -> ["."] (t_name | t_expr) ("." (t_name | t_expr))*
-op_map -> "-" t_expr
+op_prop -> ["."] t_name
+op_map -> t_expr
 op_init -> "!" (t_expr | t_number)
 op_flatten -> "*" [ t_expr ]
 op_sort -> "@" [ t_expr ]
 op_filter -> "|" t_expr
-op_take -> "[" t_number [ ":" t_number [ ":" t_number ]] "]"
+op_take -> "[" [ t_number ] ":" [ t_number ] [ ":" t_number ] "]"
 op_var -> "%" t_expr
 op_assign -> "=" t_name t_expr
 op_delay -> "\" t_expr

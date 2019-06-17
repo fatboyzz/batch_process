@@ -59,8 +59,8 @@ data.materials*node_tree.nodes*
 ## Import "*.obj" files in folder "obj" (reletive to current blend file).
 Import_Obj_Files
 !$[bpy.path.abspath("//obj")]$%${"dirpath" : data}$
--$os.listdir(dirpath)$*
+$os.listdir(dirpath)$*
 |$data.endswith(".obj")$
--$os.path.join(dirpath, data)$
+$os.path.join(dirpath, data)$
 \$bpy.ops.import_scene.obj(filepath=data)$
 

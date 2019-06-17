@@ -22,7 +22,7 @@ class ERNALexer:
     t_expr = t_count()
 
     re_table = [
-        (t_symbol, re.compile(r"""[\.\-!*@|\[:\]%=\\]""")),
+        (t_symbol, re.compile(r"""[\.!*@|\[:\]%=\\]""")),
         (t_name, re.compile(r"""[A-Za-z_][A-Za-z_0-9]*""")),
         (t_number, re.compile(r"""[0-9-]+""")),
         (t_expr, re.compile(r"""\$[^\$]*\$""")),
@@ -136,13 +136,15 @@ class ERNAParser:
         if self.is_token(ERNALexer.t_name):
             return self.parse_op_prop()
 
+        if self.is_token(ERNALexer.t_expr):
+            return self.parse_op_map()
+
         t_type, _, t_string = self.t_token
         if t_type != ERNALexer.t_symbol:
             raise ERNAErrorIndex(self.t_token.t_index, "Unexpected Token")
 
         table = {
             "." : self.parse_op_prop,
-            "-" : self.parse_op_map,
             "!" : self.parse_op_init,
             "*" : self.parse_op_flatten,
             "@" : self.parse_op_sort,
@@ -160,16 +162,15 @@ class ERNAParser:
             return parse_op()
 
     def parse_op_prop(self):
-        """Return ERNANode(op_prop, [prop])"""
+        """Return ERNANode(op_prop, prop)"""
         if self.is_symbol("."): self.next()
+        prop = self.match_token(ERNALexer.t_name).t_string
+        return ERNANode(self.op_prop, prop)
 
-        props = [self.match_token(ERNALexer.t_name).t_string]
-
-        while self.is_symbol("."):
-            self.next()
-            props.append(self.match_token(ERNALexer.t_name).t_string)
-
-        return ERNANode(self.op_prop, props)
+    def parse_op_map(self):
+        """Return ERNANode(op_map, (expr_index, expr))"""
+        _, index, expr = self.match_token(ERNALexer.t_expr)
+        return ERNANode(self.op_map, (index + 1, expr[1:-1]))
 
     def parse_op_expr(self, symbol, op_type):
         """Return ERNANode(op_type, (expr_index, expr))"""
@@ -185,10 +186,6 @@ class ERNAParser:
             return ERNANode(op_type, (index + 1, expr[1:-1]))
         else:
             return ERNANode(op_type, None)
-
-    def parse_op_map(self):
-        """Return ERNANode(op_flatten, (expr_index, expr))"""
-        return self.parse_op_expr("-", self.op_map)
 
     def parse_op_init(self):
         """Return ERNANode(op_map, (expr_index, expr))"""
@@ -255,14 +252,6 @@ class Context:
             raise CollectionErrorProperty(prop)
         return Context(data, self.ls)
 
-    def access_properties(self, props):
-        data = self.data
-        for prop in props:
-            data = getattr(data, prop, None)
-            if data == None:
-                raise CollectionErrorProperty(prop)
-        return Context(data, self.ls)
-
     def eval(self, ls, expr_value):
         try:
             expr_index, expr = expr_value
@@ -325,9 +314,9 @@ class Collection:
             else:
                 transform_op(value)
 
-    def transform_op_prop(self, props):
+    def transform_op_prop(self, prop):
         self.contexts = [
-            context.access_properties(props)
+            context.access_property(prop)
             for context in self.contexts
         ]
 
